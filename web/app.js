@@ -24,6 +24,7 @@ async function showApp(email, admin = false, clientSlug = null) {
   templates = await api('/api/templates');
   const sel = $('#template');
   sel.replaceChildren(...templates.map((t) => Object.assign(document.createElement('option'), { value: t.id, textContent: `${t.name} (${t.trim.w} × ${t.trim.h} mm)` })));
+  try { const last = localStorage.getItem('ubc.template'); if (templates.some((t) => t.id === last)) sel.value = last; } catch { /* stockage indisponible */ }
   onTemplate();
   await loadCards();
 }
@@ -57,7 +58,10 @@ function manualCsv() {
   return new Blob(['\uFEFF', t.fields.map((f) => csvCell(f.label)).join(';'), '\r\n', vals.map(csvCell).join(';'), '\r\n'], { type: 'text/csv' });
 }
 
-$('#template').addEventListener('change', onTemplate);
+$('#template').addEventListener('change', () => {
+  try { localStorage.setItem('ubc.template', $('#template').value); } catch { /* facultatif */ }
+  onTemplate();
+});
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('#loginError').textContent = '';
