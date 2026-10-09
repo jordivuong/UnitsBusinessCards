@@ -1,0 +1,59 @@
+# UnitsBusinessCards
+
+Webapp de génération de cartes de visite **PDF/X-3 CMJN** pour l'impression offset (h2impression).
+Les clients se connectent, envoient un **CSV** (une ligne par carte) et un logo facultatif, **visualisent**
+chaque carte (aperçu rastérisé depuis le PDF final), puis téléchargent les PDF prêts pour l'imprimeur
+(un PDF par carte, regroupés dans un ZIP).
+
+Spécification complète : [`docs/SPEC.md`](docs/SPEC.md).
+
+## Chaîne de génération
+
+1. **A** : PDFKit produit un PDF vectoriel en DeviceCMYK pur (boxes Media/Trim/Bleed, traits de coupe optionnels, texte réduit jusqu'au corps minimum, contrôle de la zone de sécurité de 3 mm et des glyphes absents).
+2. **B** : Ghostscript → PDF/X-3 (OutputIntent avec profil ICC, polices vectorisées, PDF 1.3).
+3. **C** : contrôles automatiques (`pdfinfo`, `pdffonts`, `pdfimages`, transparence, couleurs du PDF final = couleurs de la palette). En cas d'échec, la carte est refusée avec un message en français.
+
+Le logo (PNG/JPEG) est converti en CMJN via ImageMagick/lcms2 (intention relative + compensation du point noir) ; les transparences sont aplaties sur la couleur de fond de l'emplacement. Moins de 150 ppi : refusé ; moins de 300 ppi : avertissement.
+
+## Installation (Docker, recommandé)
+
+```bash
+# 1. Placer le profil ICC (voir icc/README.md) : icc/ISOcoated_v2_300_eci.icc
+docker compose up -d --build
+
+# 2. Créer un compte client
+docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot-de-passe-long'
+```
+
+L'app écoute sur `127.0.0.1:3000` : placez-la derrière un reverse proxy **HTTPS** (Caddy, nginx…).
+Les comptes et le secret de session sont dans le volume `/data`. Aucun PDF ni donnée saisie n'est conservé :
+les envois sont supprimés après 30 minutes (ou au redémarrage).
+
+## Développement local
+
+Prérequis : Node 22, `ghostscript` (≥ 10), `imagemagick`, `poppler-utils`.
+
+```bash
+npm ci
+ALLOW_TEST_PROFILE=1 DATA_DIR=./data node server/cli.js add-user moi@exemple.fr 'mot-de-passe-long'
+ALLOW_TEST_PROFILE=1 DATA_DIR=./data npm start     # http://localhost:3000
+npm test
+```
+
+`ALLOW_TEST_PROFILE=1` remplace le profil ECI par un profil générique : **fichiers non imprimables**.
+
+## Modèles
+
+Un fichier JSON par modèle dans `templates/` (format fini, fonds perdus, palette CMJN, éléments `rect`, `line`, `text`, `image`).
+Les colonnes du CSV sont les champs `text` du modèle (en-têtes insensibles à la casse et aux accents ; séparateur `,` `;` ou tabulation).
+Le modèle est validé au démarrage (palette ≤ 300 % d'encre, polices présentes, logo dans la zone de sécurité…).
+
+## Points à valider avec l'imprimeur
+
+- Format fini (85 × 55 mm supposé), grammage, profil du produit retenu ;
+- PDF avec traits de coupe (103 × 73 mm) ou sans (91 × 61 mm) ;
+- **Commander un BAT** avec un PDF généré avec le vrai profil ICC et le faire valider par leurs graphistes.
+
+## Licences
+
+Ghostscript (AGPL) est utilisé en sous-processus non modifié. Polices Inter : SIL OFL 1.1. Profils ICC ECI : voir leur licence.

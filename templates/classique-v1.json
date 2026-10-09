@@ -1,0 +1,32 @@
+{
+  "id": "classique-v1",
+  "name": "Classique",
+  "profile": "iso-coated-v2",
+  "trim": { "w": 85, "h": 55 },
+  "bleed": 3,
+  "palette": {
+    "encre": [0, 0, 0, 100],
+    "accent": [85, 20, 0, 0],
+    "fond": [0, 0, 0, 0]
+  },
+  "pages": [
+    {
+      "name": "recto",
+      "elements": [
+        { "type": "rect", "x": -3, "y": -3, "w": 91, "h": 61, "fill": "fond" },
+        { "type": "rect", "x": 8, "y": 24, "w": 14, "h": 0.8, "fill": "accent" },
+        { "type": "text", "field": "nom", "label": "Nom", "font": "Inter-SemiBold", "size": 11, "minSize": 8,
+          "x": 8, "y": 10, "maxW": 49, "fill": "encre", "maxChars": 40 },
+        { "type": "text", "field": "titre", "label": "Fonction", "font": "Inter-Regular", "size": 8, "minSize": 6.5,
+          "x": 8, "y": 16.5, "maxW": 49, "fill": "accent", "maxChars": 50 },
+        { "type": "text", "field": "telephone", "label": "Téléphone", "font": "Inter-Regular", "size": 7, "minSize": 6,
+          "x": 8, "y": 33, "maxW": 69, "fill": "encre", "maxChars": 25, "optional": true },
+        { "type": "text", "field": "email", "label": "E-mail", "font": "Inter-Regular", "size": 7, "minSize": 6,
+          "x": 8, "y": 38, "maxW": 69, "fill": "encre", "maxChars": 60 },
+        { "type": "text", "field": "site", "label": "Site web", "font": "Inter-Regular", "size": 7, "minSize": 6,
+          "x": 8, "y": 43, "maxW": 69, "fill": "encre", "maxChars": 60, "optional": true },
+        { "type": "image", "x": 57, "y": 8, "w": 20, "h": 14, "background": "fond" }
+      ]
+    }
+  ]
+}

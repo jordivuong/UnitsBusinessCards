@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cartes de visite</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Cartes de visite</h1>
+    <div id="who" hidden><span id="whoEmail"></span> <button class="link" id="logout">Se déconnecter</button></div>
+  </header>
+
+  <main>
+    <section id="login" class="panel" hidden>
+      <h2>Connexion</h2>
+      <form id="loginForm">
+        <label>E-mail <input type="email" name="email" autocomplete="username" required></label>
+        <label>Mot de passe <input type="password" name="password" autocomplete="current-password" required></label>
+        <p class="error" id="loginError" role="alert"></p>
+        <button class="primary">Se connecter</button>
+      </form>
+    </section>
+
+    <section id="app" hidden>
+      <form id="jobForm" class="panel">
+        <h2>1. Vos informations</h2>
+        <label>Modèle <select id="template" name="templateId"></select></label>
+        <p class="hint">Un fichier CSV avec une ligne par carte. Colonnes : <b id="columns"></b>.
+          <a id="sample" href="#">Télécharger un CSV d'exemple</a></p>
+        <label>Fichier CSV <input type="file" id="csv" name="csv" accept=".csv,text/csv" required></label>
+        <label id="logoRow">Logo (facultatif, PNG ou JPEG, 300 ppi au format imprimé) <input type="file" id="logo" name="logo" accept="image/png,image/jpeg"></label>
+        <label class="check"><input type="checkbox" id="marks"> Inclure les traits de coupe (PDF plus grand, 103 × 73 mm)</label>
+        <p class="error" id="jobError" role="alert"></p>
+        <button class="primary" id="go">Générer les cartes</button>
+        <p class="hint" id="busy" hidden>Génération en cours… (quelques secondes par carte)</p>
+      </form>
+
+      <section id="results" hidden>
+        <div class="panel">
+          <h2>2. Vérifiez le résultat</h2>
+          <p class="notice">Les couleurs affichées à l'écran diffèrent du papier imprimé. Un BAT (test d'impression) est disponible chez l'imprimeur avant tirage.</p>
+          <p class="notice warn" id="testProfile" hidden>Profil d'impression de TEST : ne pas envoyer ces fichiers à l'imprimeur.</p>
+          <fieldset class="layers">
+            <legend>Calques</legend>
+            <label><input type="checkbox" data-layer="bleed"> Fonds perdus</label>
+            <label><input type="checkbox" data-layer="trim"> Coupe</label>
+            <label><input type="checkbox" data-layer="safe"> Zone de sécurité</label>
+          </fieldset>
+          <div id="failed"></div>
+          <div id="cards" class="cards"></div>
+        </div>
+        <div class="panel">
+          <h2>3. Téléchargez</h2>
+          <p class="hint">Un fichier PDF/X-3 CMJN par carte, prêt à envoyer à l'imprimeur (archive ZIP).</p>
+          <a class="button primary" id="zip" href="#">Télécharger le ZIP des PDF</a>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
