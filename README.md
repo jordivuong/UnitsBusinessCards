@@ -19,13 +19,14 @@ Le logo (PNG/JPEG) est converti en CMJN via ImageMagick/lcms2 (intention relativ
 
 ```bash
 # 1. Placer le profil ICC (voir icc/README.md) : icc/ISOcoated_v2_300_eci.icc
+cp .env.example .env   # DOMAIN=cartes.units-demo.com
 docker compose up -d --build
 
 # 2. Créer un compte client
 docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot-de-passe-long'
 ```
 
-L'app écoute sur `127.0.0.1:3000` : placez-la derrière un reverse proxy **HTTPS** (Caddy, nginx…).
+Caddy fournit le HTTPS automatiquement : copier `.env.example` en `.env` et y mettre le domaine. Procédure complète pour le VPS : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md).
 Les comptes et le secret de session sont dans le volume `/data`. Aucun PDF ni donnée saisie n'est conservé :
 les envois sont supprimés après 30 minutes (ou au redémarrage).
 
