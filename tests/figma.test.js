@@ -81,6 +81,13 @@ test('avertissement : corps non standard arrondi', () => {
   assert.match(out.warnings.join(), /arrondi/);
 });
 
+test('police : nom PostScript déduit de la famille et du style quand l\'API renvoie null', () => {
+  const r = fixture((x) => { Object.assign(x.children[1].children[2].style, { fontPostScriptName: null, fontFamily: 'Inter', fontStyle: 'Semi Bold' }); });
+  const out = figmaToTemplate(r, { id: 'demo', name: 'D' });
+  assert.deepEqual(out.errors, []);
+  assert.equal(out.template.pages[0].elements[2].font, 'Inter-SemiBold');
+});
+
 test('avertissement : couleur Figma éloignée de la pastille déclarée', () => {
   const r = fixture((x) => { x.children[1].children[1].name = 'filet fill=encre'; });
   assert.match(figmaToTemplate(r, { id: 'demo', name: 'D' }).warnings.join(), /diffère/);

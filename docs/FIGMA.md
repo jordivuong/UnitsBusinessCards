@@ -79,6 +79,7 @@ export FIGMA_TOKEN=figd_xxx      # inutile si un proxy ajoute l'en-tête X-Figma
 npm run figma:import -- --client acme --id carte-v1 --name "Carte ACME" \
      --file <clé du fichier> --node <id de la section>
 #   clé du fichier et id du nœud : dans l'URL Figma  figma.com/design/<CLÉ>/…?node-id=<ID avec - à la place de :>
+#   derrière le proxy d'un environnement cloud : NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=<bundle CA> (le fetch de Node ignore sinon HTTPS_PROXY)
 #   hors ligne : --json export.json  (réponse de l'API « GET /v1/files/:key/nodes »)
 
 # 7. Vérification : écrit out/acme-carte-v1/ (PDF/X-3 avec et sans traits de coupe + PNG)
@@ -100,7 +101,7 @@ docker compose exec cartes node server/cli.js add-user prenom@acme.fr 'mot-de-pa
 
 ## Limites connues
 
-- Le fichier maître et le convertisseur ont été validés ensemble (le design du maître redonne le même PDF que le modèle `demo`), mais le convertisseur n'a pas encore tourné sur un export réel de l'API REST Figma : au premier import réel, vérifiez la section « Commandes » ci-dessous et signalez tout écart (par exemple de nom PostScript de police).
+- Le fichier maître et le convertisseur ont été validés ensemble (le design du maître redonne le même PDF que le modèle `demo`), mais le convertisseur a tourné sur un export réel de l'API REST du fichier maître : le recto redonne le modèle `demo`. L'API renvoie `fontPostScriptName: null` ; le nom PostScript est alors déduit de la famille et du style (`Inter` + `Semi Bold` → `Inter-SemiBold`), ou imposé par `font=<NomPostScript>` dans le nom du calque pour les polices dont le nom ne suit pas cette règle.
 - Le rendu du texte est calculé par l'app (métriques de la police), pas par Figma : de petits écarts verticaux (< 0,5 mm) sont possibles avec un interlignage non automatique. **L'aperçu PNG de `template:check` fait foi**, pas Figma.
 - Un seul type d'image dans les modèles : l'emplacement du logo (fourni par le client à chaque envoi). Les illustrations/photos de fond ne sont pas gérées en v1.
 - Couleurs écran ≠ papier : validation finale sur BAT.

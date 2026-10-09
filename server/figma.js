@@ -91,7 +91,9 @@ function convertPage(frame, bleed, pal, errors, warnings) {
         if (stroke) elements.push({ type: 'line', x1: x, y1: y, x2: num(x + w), y2: num(y + h), width, stroke });
       } else if (n.type === 'TEXT') {
         const st = n.style || {};
-        const font = tags.font && tags.font !== true ? tags.font : st.fontPostScriptName;
+        // L'API REST renvoie souvent fontPostScriptName = null : on le déduit alors de la famille et du style (« Inter » + « Semi Bold » → Inter-SemiBold).
+        const guessed = st.fontFamily && st.fontStyle ? `${st.fontFamily}-${st.fontStyle}`.replace(/\s+/g, '') : null;
+        const font = tags.font && tags.font !== true ? tags.font : st.fontPostScriptName || guessed;
         if (!font) { errors.push(`${label} : police sans nom PostScript, ajoutez font=<NomPostScript>.`); continue; }
         if (st.lineHeightUnit && st.lineHeightUnit !== 'INTRINSIC_%') warnings.push(`${label} : interlignage non automatique (le texte peut être décalé verticalement ; vérifiez l'aperçu).`);
         const fill = colorOf(n, 'fill', ctx, label);
