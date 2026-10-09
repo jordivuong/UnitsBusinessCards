@@ -17,7 +17,7 @@ Les comptes sont rattachés à un client : un utilisateur ne voit et ne peut gé
 | # | Qui | Étape | Outil |
 |---|---|---|---|
 | 1 | Chef de projet | Recueillir : format, recto/verso, champs, couleurs **CMJN** (ou Pantone converti), polices + licences, profil et fonds perdus validés par l'imprimeur | fiche client |
-| 2 | Designer | Dupliquer le fichier Figma **« Modèle carte »** et le nommer `Client – Carte vN` | Figma |
+| 2 | Designer | Dupliquer le [fichier Figma maître](https://www.figma.com/design/InheT65NTefwSoobTAy0o4) (page « Modèle carte » + page « Guide ») et le nommer `Client – Carte vN` | Figma |
 | 3 | Designer | Concevoir en respectant les conventions ci-dessous | Figma |
 | 4 | Designer | Auto-contrôle : liste de vérification (fin de ce document) | Figma |
 | 5 | Intégrateur | Créer le client, déposer les polices | `npm run client:new` |
@@ -32,7 +32,13 @@ Ne passez à l'étape 11 qu'avec le **vrai profil ICC** sur le serveur (pas le p
 
 ## Conventions Figma
 
-**Unités.** *1 px Figma = 1 mm.* Un cadre de 91 × 61 px représente une carte de 85 × 55 mm avec 3 mm de fonds perdus. **La taille de police Figma est en points (pt)** : 8 dans Figma = 8 pt imprimés. Interlignage : **Auto**.
+**Unités.** *1 px Figma = 1 mm*, **y compris pour la taille de police** : un cadre de 91 × 61 px représente une carte de 85 × 55 mm avec 3 mm de fonds perdus, et un texte de 11 pt imprimés se règle à **3,881** dans Figma (c'est ce qui rend l'aperçu Figma fidèle à l'échelle). L'import convertit en points, arrondis au quart de point (avertissement si l'écart dépasse 0,06 pt).
+
+| pt | 6 | 6,5 | 7 | 8 | 9 | 10 | 11 | 12 | 14 |
+|---|---|---|---|---|---|---|---|---|---|
+| Figma | 2,117 | 2,293 | 2,469 | 2,822 | 3,175 | 3,528 | 3,881 | 4,233 | 4,939 |
+
+Les options `min=` et `max=` des noms de calques restent en **pt** (corps) et en nombre de caractères. Interlignage : **Auto**. L'espacement des lettres (Figma, en px = mm) est converti de la même façon.
 
 **Structure.** Une *section* par modèle (son nom est libre), contenant :
 
@@ -94,6 +100,7 @@ docker compose exec cartes node server/cli.js add-user prenom@acme.fr 'mot-de-pa
 
 ## Limites connues
 
+- Le fichier maître et le convertisseur ont été validés ensemble (le design du maître redonne le même PDF que le modèle `demo`), mais le convertisseur n'a pas encore tourné sur un export réel de l'API REST Figma : au premier import réel, vérifiez la section « Commandes » ci-dessous et signalez tout écart (par exemple de nom PostScript de police).
 - Le rendu du texte est calculé par l'app (métriques de la police), pas par Figma : de petits écarts verticaux (< 0,5 mm) sont possibles avec un interlignage non automatique. **L'aperçu PNG de `template:check` fait foi**, pas Figma.
 - Un seul type d'image dans les modèles : l'emplacement du logo (fourni par le client à chaque envoi). Les illustrations/photos de fond ne sont pas gérées en v1.
 - Couleurs écran ≠ papier : validation finale sur BAT.
@@ -103,7 +110,7 @@ docker compose exec cartes node server/cli.js add-user prenom@acme.fr 'mot-de-pa
 - [ ] Cadres `page:recto` (et `page:verso`) de taille fini + 2 × 3 mm, mêmes dimensions
 - [ ] Cadre `palette` : couleurs en CMJN dans le nom, texte courant en `0/0/0/100`, encre ≤ 300 %
 - [ ] Tous les textes à ≥ 3 mm du bord de coupe, corps ≥ 6 pt (≥ 7 pt en réserve sur fond foncé)
-- [ ] Champs : nom `champ:…`, largeur fixe, `label`, `max`, `min` renseignés
+- [ ] Tailles de police saisies en mm (voir le tableau) ; champs : nom `champ:…`, largeur fixe, `label`, `max`, `min` renseignés
 - [ ] Fonds et aplats jusqu'au bord du cadre (fonds perdus)
 - [ ] Aucune opacité, ombre, dégradé, image, vecteur ; calques de notes préfixés par `_`
 - [ ] Polices : nom PostScript communiqué + fichiers `.otf` fournis

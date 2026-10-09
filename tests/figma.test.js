@@ -4,12 +4,13 @@ import { figmaToTemplate, parseName } from '../server/figma.js';
 
 const solid = (r, g, b) => [{ type: 'SOLID', color: { r: r / 255, g: g / 255, b: b / 255, a: 1 } }];
 const box = (x, y, width, height) => ({ absoluteBoundingBox: { x, y, width, height } });
+const mmOfPt = (pt) => pt * 25.4 / 72; // la taille de police Figma est en mm (1 px = 1 mm)
 const OX = 1000, OY = 500; // position du cadre dans le canevas Figma (doit être sans importance)
 
 function fixture(mutate) {
   const text = (name, extra) => ({
     type: 'TEXT', name, characters: 'x', fills: solid(35, 31, 32), textAutoResize: 'HEIGHT',
-    style: { fontPostScriptName: 'Inter-Regular', fontSize: 8, textAlignHorizontal: 'LEFT', lineHeightUnit: 'INTRINSIC_%' }, ...extra,
+    style: { fontPostScriptName: 'Inter-Regular', fontSize: mmOfPt(8), textAlignHorizontal: 'LEFT', lineHeightUnit: 'INTRINSIC_%' }, ...extra,
   });
   const root = {
     type: 'SECTION', name: 'carte-demo',
@@ -25,7 +26,7 @@ function fixture(mutate) {
         type: 'FRAME', name: 'page:recto bleed=3', ...box(OX, OY, 91, 61), children: [
           { type: 'RECTANGLE', name: 'fond fill=fond', fills: solid(255, 255, 255), ...box(OX, OY, 91, 61) },
           { type: 'RECTANGLE', name: 'filet', fills: solid(45, 160, 225), ...box(OX + 11, OY + 27, 14, 0.8) },
-          text('champ:nom label="Nom" min=8 max=40', { ...box(OX + 11, OY + 13, 49, 6), style: { fontPostScriptName: 'Inter-SemiBold', fontSize: 11, textAlignHorizontal: 'LEFT', lineHeightUnit: 'INTRINSIC_%' } }),
+          text('champ:nom label="Nom" min=8 max=40', { ...box(OX + 11, OY + 13, 49, 6), style: { fontPostScriptName: 'Inter-SemiBold', fontSize: mmOfPt(11), textAlignHorizontal: 'LEFT', lineHeightUnit: 'INTRINSIC_%' } }),
           text('champ:site opt fill=encre', box(OX + 11, OY + 46, 69, 5)),
           text('texte', { ...box(OX + 11, OY + 40, 40, 5), characters: 'Fixe' }),
           { type: 'RECTANGLE', name: 'logo bg=fond', ...box(OX + 60, OY + 11, 20, 14) },
@@ -53,6 +54,7 @@ test('conversion : coordonnées relatives à la coupe, couleurs, champs', () => 
   assert.equal(els[1].fill, 'accent'); // déduit de la pastille la plus proche
   assert.equal(els[2].x, 8); assert.equal(els[2].y, 10); assert.equal(els[2].maxW, 49);
   assert.equal(els[2].field, 'nom'); assert.equal(els[2].minSize, 8); assert.equal(els[2].maxChars, 40);
+  assert.equal(els[2].size, 11); assert.equal(els[3].size, 8);
   assert.equal(els[3].optional, true);
   assert.equal(els[4].text, 'Fixe');
   assert.deepEqual(els[5], { type: 'image', x: 57, y: 8, w: 20, h: 14, background: 'fond' });
@@ -70,6 +72,13 @@ test('refus : opacité, effets, vecteur, largeur auto, couleur inconnue', () => 
   assert.match(errorsOf((r) => { page(r).children[1].fills = solid(10, 200, 10); }), /couleur non déterminée/);
   assert.match(errorsOf((r) => { page(r).children[2].name = 'champ:nom fill=inconnue'; }), /absente de la palette/);
   assert.match(errorsOf((r) => { r.children.shift(); }), /palette/);
+});
+
+test('avertissement : corps non standard arrondi', () => {
+  const r = fixture((x) => { x.children[1].children[2].style.fontSize = 4.0; });
+  const out = figmaToTemplate(r, { id: 'demo', name: 'D' });
+  assert.equal(out.template.pages[0].elements[2].size, 11.25);
+  assert.match(out.warnings.join(), /arrondi/);
 });
 
 test('avertissement : couleur Figma éloignée de la pastille déclarée', () => {

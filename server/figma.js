@@ -1,7 +1,8 @@
 // Conversion d'un arbre de nœuds Figma (API REST) en modèle JSON de l'app.
-// Conventions : docs/FIGMA.md  (1 px Figma = 1 mm ; taille de police Figma = pt ; couleurs CMJN dans le nom des calques).
+// Conventions : docs/FIGMA.md  (1 px Figma = 1 mm, y compris pour la taille de police ; couleurs CMJN dans le nom des calques).
 
 const num = (v) => Math.round(v * 100) / 100;
+const PT_PER_MM = 72 / 25.4;
 
 /** "champ:nom label="Nom de famille" min=8 opt" → { kind, key, tags: {label, min, opt:true} } */
 export function parseName(name) {
@@ -94,13 +95,15 @@ function convertPage(frame, bleed, pal, errors, warnings) {
         if (!font) { errors.push(`${label} : police sans nom PostScript, ajoutez font=<NomPostScript>.`); continue; }
         if (st.lineHeightUnit && st.lineHeightUnit !== 'INTRINSIC_%') warnings.push(`${label} : interlignage non automatique (le texte peut être décalé verticalement ; vérifiez l'aperçu).`);
         const fill = colorOf(n, 'fill', ctx, label);
-        const size = st.fontSize;
+        const exactPt = st.fontSize * PT_PER_MM;
+        const size = Math.round(exactPt * 4) / 4; // pas de 0,25 pt
+        if (Math.abs(exactPt - size) > 0.06) warnings.push(`${label} : corps ${exactPt.toFixed(2)} pt arrondi à ${size} pt.`);
         const el = { type: 'text', font, size, minSize: tags.min && tags.min !== true ? Number(tags.min) : Math.max(6, Math.floor(size * 0.8 * 4) / 4), fill };
         const align = { LEFT: 'left', CENTER: 'center', RIGHT: 'right' }[st.textAlignHorizontal || 'LEFT'];
         el.x = align === 'left' ? x : align === 'center' ? num(x + w / 2) : num(x + w);
         el.y = y; el.maxW = w;
         if (align !== 'left') el.align = align;
-        if (st.letterSpacing) el.letterSpacing = num(st.letterSpacing);
+        if (st.letterSpacing) el.letterSpacing = num(st.letterSpacing * PT_PER_MM);
         if (kind === 'champ') {
           if (!key) { errors.push(`${label} : nom de champ manquant (champ:nom).`); continue; }
           if (n.textAutoResize === 'WIDTH_AND_HEIGHT') errors.push(`${label} : largeur automatique ; fixez la largeur de la zone de texte (elle définit la largeur maximale).`);
