@@ -20,9 +20,10 @@ if (arg('json')) {
   const j = JSON.parse(fs.readFileSync(arg('json'), 'utf8'));
   root = j.nodes ? Object.values(j.nodes)[0].document : j.document || j;
 } else {
+  // FIGMA_TOKEN facultatif : derrière un proxy qui injecte lui-même l'en-tête X-Figma-Token (secret d'environnement), il n'est pas nécessaire.
   const token = process.env.FIGMA_TOKEN, file = arg('file'), node = arg('node');
-  if (!token || !file || !node) die('Il faut FIGMA_TOKEN, --file et --node (ou --json).');
-  const r = await fetch(`https://api.figma.com/v1/files/${file}/nodes?ids=${encodeURIComponent(node)}`, { headers: { 'X-Figma-Token': token } });
+  if (!file || !node) die('Il faut --file et --node (ou --json), et FIGMA_TOKEN sauf si un proxy fournit le jeton.');
+  const r = await fetch(`https://api.figma.com/v1/files/${file}/nodes?ids=${encodeURIComponent(node)}`, { headers: token ? { 'X-Figma-Token': token } : {} });
   if (!r.ok) die(`Figma a répondu ${r.status}. Vérifiez le jeton, la clé de fichier et l'identifiant du nœud.`);
   root = Object.values((await r.json()).nodes)[0]?.document;
   if (!root) die('Nœud introuvable dans le fichier Figma.');

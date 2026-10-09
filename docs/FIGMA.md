@@ -75,7 +75,7 @@ npm run client:new -- acme "ACME SA"
 cp /chemin/vers/Polices/*.otf clients/acme/fonts/        # vérifier les licences d'incorporation PDF
 
 # 6. Import depuis Figma (jeton personnel Figma : Settings → Security → Personal access tokens, droit « File content: read »)
-export FIGMA_TOKEN=figd_xxx
+export FIGMA_TOKEN=figd_xxx      # inutile si un proxy ajoute l'en-tête X-Figma-Token
 npm run figma:import -- --client acme --id carte-v1 --name "Carte ACME" \
      --file <clé du fichier> --node <id de la section>
 #   clé du fichier et id du nœud : dans l'URL Figma  figma.com/design/<CLÉ>/…?node-id=<ID avec - à la place de :>
