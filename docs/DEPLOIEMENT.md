@@ -1,6 +1,6 @@
 # Déploiement sur le VPS OVH (Ubuntu)
 
-Cible : VPS `vps-0e457e13.vps.ovh.net`, IPv4 `213.32.65.185`, domaine `client.units.design`.
+Cible : VPS `vps-0e457e13.vps.ovh.net`, IPv4 `213.32.65.185`, domaine `cards.units.design`.
 
 ## 1. DNS (une fois)
 
@@ -8,10 +8,10 @@ Dans la zone DNS OVH de `units.design`, ajouter :
 
 | Type | Sous-domaine | Cible |
 |---|---|---|
-| A | `client` | `213.32.65.185` |
-| AAAA (facultatif) | `client` | `2001:41d0:305:2100::1:76b6` |
+| A | `cards` | `213.32.65.185` |
+| AAAA (facultatif) | `cards` | `2001:41d0:305:2100::1:76b6` |
 
-Vérifier : `dig +short client.units.design` renvoie l'adresse du VPS. Caddy ne peut obtenir le certificat HTTPS qu'une fois le DNS propagé.
+Vérifier : `dig +short cards.units.design` renvoie l'adresse du VPS. Caddy ne peut obtenir le certificat HTTPS qu'une fois le DNS propagé.
 
 ## 2. Préparer le serveur (une fois)
 
@@ -69,7 +69,7 @@ Les comptes (volume `cartes-data`) et les certificats (volume `caddy-data`) sont
 
 ## 6. Vérifications après installation
 
-- `https://client.units.design` s'ouvre en HTTPS, sans bandeau « Profil d'impression de TEST » après génération ;
+- `https://cards.units.design` s'ouvre en HTTPS, sans bandeau « Profil d'impression de TEST » après génération ;
 - générer une carte avec le CSV d'exemple, puis commander un **BAT** chez l'imprimeur avec ce PDF.
 
 ## Sauvegarde
