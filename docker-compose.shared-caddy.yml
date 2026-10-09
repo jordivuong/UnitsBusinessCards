@@ -1,0 +1,24 @@
+# Variante pour un serveur dont les ports 80/443 sont déjà pris par un Caddy existant (autre appli).
+# Pas de second Caddy : l'appli rejoint le réseau Docker du Caddy existant, qui la sert via
+#   cards.units.design { reverse_proxy cartes:3000 }
+# Usage : CADDY_NETWORK=<réseau du Caddy existant> docker compose -f docker-compose.shared-caddy.yml up -d --build
+services:
+  cartes:
+    build: .
+    restart: unless-stopped
+    environment:
+      COOKIE_SECURE: "1"
+      # ALLOW_TEST_PROFILE: "1" # essai SANS profil ICC (fichiers non imprimables)
+    volumes:
+      - cartes-data:/data
+      - ./icc:/app/icc:ro
+      - ./clients:/app/clients:ro
+    networks: [caddy]
+
+networks:
+  caddy:
+    name: ${CADDY_NETWORK:?Renseignez CADDY_NETWORK (réseau Docker du Caddy existant)}
+    external: true
+
+volumes:
+  cartes-data:
