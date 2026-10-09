@@ -1,5 +1,8 @@
 const $ = (s, r = document) => r.querySelector(s);
 let templates = [];
+const RESERVED = ['api', 'admin', 'fonts', 'static', 'assets'];
+const m = location.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,39})$/);
+const pageClient = m && !RESERVED.includes(m[1]) ? m[1] : null; // adresse d'un client : cards.units.design/<client>
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -12,7 +15,9 @@ async function api(path, opts) {
 function showLogin() {
   $('#login').hidden = false; $('#app').hidden = true; $('#who').hidden = true;
 }
-async function showApp(email, admin = false) {
+async function showApp(email, admin = false, clientSlug = null) {
+  // Compte d'un autre client que celui de l'adresse : on l'envoie sur la sienne.
+  if (!admin && clientSlug && pageClient !== clientSlug) { location.replace(`/${clientSlug}`); return; }
   $('#adminLink').hidden = !admin;
   $('#login').hidden = true; $('#app').hidden = false; $('#who').hidden = false;
   $('#whoEmail').textContent = email;
@@ -58,9 +63,11 @@ $('#loginForm').addEventListener('submit', async (e) => {
   $('#loginError').textContent = '';
   try {
     const d = Object.fromEntries(new FormData(e.target));
+    if (pageClient) d.client = pageClient;
     const me = await api('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(d) });
     e.target.reset();
-    await showApp(me.email, (await api('/api/me')).admin);
+    const info = await api('/api/me');
+    await showApp(me.email, info.admin, info.clientSlug);
   } catch (err) { $('#loginError').textContent = err.message; }
 });
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); $('#results').hidden = true; $('#editForm').hidden = true; showLogin(); });
@@ -202,4 +209,12 @@ function syncLayers() {
 for (const cb of document.querySelectorAll('[data-layer]')) cb.addEventListener('change', syncLayers);
 
 onMode();
-try { const me = await api('/api/me'); await showApp(me.email, me.admin); } catch { showLogin(); }
+if (pageClient) {
+  try {
+    const c = await api(`/api/public/client/${pageClient}`);
+    document.title = `Cartes de visite — ${c.name}`;
+    $('#title').textContent = `Cartes de visite — ${c.name}`;
+    $('#loginTitle').textContent = `Connexion — ${c.name}`;
+  } catch { /* adresse inconnue : le serveur répond déjà 404 */ }
+}
+try { const me = await api('/api/me'); await showApp(me.email, me.admin, me.clientSlug); } catch { showLogin(); }

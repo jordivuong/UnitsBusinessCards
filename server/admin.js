@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config } from './config.js';
-import { SLUG, validateTemplate, loadClients, resetClients, getClient, clientFontDirs } from './template.js';
+import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs } from './template.js';
 import { figmaToTemplate } from './figma.js';
 import { renderCard } from './render.js';
 import { addUser, requireAdmin } from './auth.js';
@@ -89,6 +89,7 @@ export function adminRouter() {
   r.post('/clients', wrap((req, res) => {
     const { slug, name } = req.body || {};
     if (!SLUG.test(slug || '') || !String(name || '').trim()) throw userErr('Identifiant (a-z, 0-9, tirets) et nom requis.');
+    if (RESERVED_SLUGS.has(slug)) throw userErr('Cet identifiant est réservé : choisissez-en un autre.');
     if (getClient(slug)) throw userErr('Ce client existe déjà.');
     const dir = clientDir(slug);
     for (const d of ['templates', 'fonts']) fs.mkdirSync(path.join(dir, d), { recursive: true });

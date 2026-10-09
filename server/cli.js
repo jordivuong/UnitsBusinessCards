@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { addUser } from './auth.js';
 import { config } from './config.js';
-import { SLUG, getClient } from './template.js';
+import { SLUG, RESERVED_SLUGS, getClient } from './template.js';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const flag = (n) => { const i = rest.indexOf(`--${n}`); return i >= 0 ? rest[i + 1] : undefined; };
@@ -18,6 +18,7 @@ try {
   if (cmd === 'new-client') {
     const [slug, name] = pos;
     if (!SLUG.test(slug || '') || !name) usage();
+    if (RESERVED_SLUGS.has(slug)) throw new Error(`Identifiant réservé : ${slug}`);
     const dir = path.join(config.clientsDir, slug);
     if (fs.existsSync(dir)) throw new Error(`Le client ${slug} existe déjà.`);
     for (const d of ['templates', 'fonts', 'assets']) fs.mkdirSync(path.join(dir, d), { recursive: true });

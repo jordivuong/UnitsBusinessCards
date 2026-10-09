@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cartes de visite</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="top">
-    <h1>Cartes de visite</h1>
-    <div id="who" hidden><a id="adminLink" href="admin.html" hidden>Administration</a> <span id="whoEmail"></span> <button class="link" id="logout">Se déconnecter</button></div>
+    <h1 id="title">Cartes de visite</h1>
+    <div id="who" hidden><a id="adminLink" href="/admin.html" hidden>Administration</a> <span id="whoEmail"></span> <button class="link" id="logout">Se déconnecter</button></div>
   </header>
 
   <main>
     <section id="login" class="panel" hidden>
-      <h2>Connexion</h2>
+      <h2 id="loginTitle">Connexion</h2>
       <form id="loginForm">
         <label>E-mail <input type="email" name="email" autocomplete="username" required></label>
         <label>Mot de passe <input type="password" name="password" autocomplete="current-password" required></label>
@@ -82,6 +82,6 @@
       </section>
     </section>
   </main>
-  <script src="app.js" type="module"></script>
+  <script src="/app.js" type="module"></script>
 </body>
 </html>

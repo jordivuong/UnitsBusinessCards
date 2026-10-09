@@ -23,6 +23,8 @@ async function refresh() {
   }
   $('#clients').replaceChildren(...clients.map((c) => {
     const box = el('div', { className: 'client' }, el('h3', { textContent: `${c.name} (${c.slug})` }));
+    const url = `${location.origin}/${c.slug}`;
+    box.append(el('p', { className: 'hint' }, 'Adresse du client : ', el('a', { href: url, textContent: url, target: '_blank', rel: 'noopener' })));
     box.append(el('p', { className: 'hint', textContent: `Polices : ${c.fonts.join(', ') || 'aucune'}` }));
     const ul = el('ul', { className: 'tpl' });
     for (const t of c.templates) {

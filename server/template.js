@@ -67,6 +67,8 @@ export function fontPath(name, template) {
 }
 
 export const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
+/** Identifiants interdits pour un client : ils sont des chemins du site (cards.units.design/<client>). */
+export const RESERVED_SLUGS = new Set(['api', 'admin', 'fonts', 'static', 'assets']);
 
 let cache;
 export const resetClients = () => { cache = undefined; };

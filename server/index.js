@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config, ROOT } from './config.js';
-import { loadClients, getClient, getTemplate, SAFE_MM } from './template.js';
+import { loadClients, getClient, getTemplate, SAFE_MM, SLUG, RESERVED_SLUGS } from './template.js';
 import { readCsv, sampleCsv } from './csv.js';
 import { renderCard } from './render.js';
 import { resolveProfile } from './profiles.js';
@@ -43,15 +43,24 @@ setInterval(() => {
 
 // --- Authentification
 app.post('/api/login', loginLimiter, (req, res) => {
-  const { email, password } = req.body || {};
+  const { email, password, client } = req.body || {};
   if (!checkLogin(email, password)) return res.status(401).json({ error: 'E-mail ou mot de passe incorrect.' });
+  // Page d'un client (/<client>) : seuls les comptes de ce client (et les administrateurs) s'y connectent.
+  if (client && clientOf(email) !== client && !isAdmin(email))
+    return res.status(403).json({ error: "Ce compte n'est pas rattaché à ce client : utilisez l'adresse qui vous a été communiquée." });
   setCookie(res, makeSession(email), sessionMaxAge);
   res.json({ email: String(email).trim().toLowerCase() });
 });
 app.post('/api/logout', (req, res) => { setCookie(res, '', 0); res.json({ ok: true }); });
 app.get('/api/me', (req, res) => {
   const email = currentUser(req);
-  email ? res.json({ email, client: getClient(clientOf(email))?.name || null, admin: isAdmin(email) }) : res.status(401).json({ error: 'Non connecté.' });
+  email ? res.json({ email, client: getClient(clientOf(email))?.name || null, clientSlug: clientOf(email) || null, admin: isAdmin(email) }) : res.status(401).json({ error: 'Non connecté.' });
+});
+
+// Nom d'un client pour sa page de connexion (aucune autre donnée).
+app.get('/api/public/client/:slug', (req, res) => {
+  const c = SLUG.test(req.params.slug) && !RESERVED_SLUGS.has(req.params.slug) ? getClient(req.params.slug) : null;
+  c ? res.json({ slug: c.slug, name: c.name }) : res.status(404).json({ error: 'Client inconnu.' });
 });
 
 // --- Administration (modèles Figma, polices, clients, comptes)
@@ -199,6 +208,15 @@ app.get('/api/jobs/:id/archive.zip', requireAuth, (req, res) => {
 });
 
 app.use(express.static(path.join(ROOT, 'web'), { index: 'index.html', setHeaders: (r) => r.setHeader('Cache-Control', 'no-cache') }));
+
+// cards.units.design/<client> : la même application, présentée pour ce client (la page lit l'adresse).
+app.get(/^\/([a-z0-9][a-z0-9-]{0,39})\/$/, (req, res) => res.redirect(301, `/${req.params[0]}`));
+app.get(/^\/([a-z0-9][a-z0-9-]{0,39})$/, (req, res) => {
+  const slug = req.params[0];
+  if (RESERVED_SLUGS.has(slug) || !getClient(slug)) return res.status(404).type('text').send('Page introuvable.');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(ROOT, 'web', 'index.html'));
+});
 
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) return res.status(422).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Fichier trop volumineux (10 Mo maximum).' : 'Envoi invalide.' });
