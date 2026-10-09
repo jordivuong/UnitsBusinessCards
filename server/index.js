@@ -8,9 +8,9 @@ import path from 'node:path';
 import { config, ROOT } from './config.js';
 import { loadClients, getClient, getTemplate, SAFE_MM } from './template.js';
 import { readCsv, sampleCsv } from './csv.js';
-import { renderCard, prepareLogo } from './render.js';
+import { renderCard } from './render.js';
 import { resolveProfile } from './profiles.js';
-import { sniff, userError } from './logo.js';
+import { userError } from './logo.js';
 import { clientOf, checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
 
 const app = express();
@@ -69,7 +69,7 @@ app.get('/api/templates/:id/exemple.csv', requireAuth, (req, res) => {
 // --- Génération
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'carte';
 
-app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }, { name: 'logo', maxCount: 1 }]), async (req, res) => {
+app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }]), async (req, res) => {
   const t0 = Date.now();
   const id = crypto.randomBytes(16).toString('hex');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-'));
@@ -84,19 +84,12 @@ app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }, 
     const { rows, errors } = readCsv(csvFile.buffer, template, config.maxRows);
     if (errors.length) throw userError(errors.join(' '));
 
-    let logo = null;
-    const logoFile = req.files?.logo?.[0];
-    if (logoFile) {
-      if (!sniff(logoFile.buffer)) throw userError('Le logo doit être un fichier PNG ou JPEG.');
-      logo = await prepareLogo(template, logoFile.buffer, dir);
-    }
-
     const cards = [], failed = [];
     let n = 0;
     for (const row of rows) {
       const name = `carte-${String(++n).padStart(2, '0')}-${slug(row.values.nom || row.values[template.fields[0].name])}`;
       try {
-        const r = await renderCard(template, row.values, { dir, withMarks, logo, name });
+        const r = await renderCard(template, row.values, { dir, withMarks, logo: null, name });
         cards.push({ n, line: row.line, label: row.values.nom || name, pdf: r.pdf, previews: r.previews, warnings: r.warnings });
       } catch (e) {
         if (!e.user) console.error('[render]', e.message);

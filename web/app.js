@@ -25,7 +25,29 @@ function onTemplate() {
   if (!t) return;
   $('#columns').textContent = t.fields.map((f) => f.label + (f.optional ? ' (facultatif)' : '')).join(', ');
   $('#sample').href = `/api/templates/${t.id}/exemple.csv`;
-  $('#logoRow').hidden = !t.hasLogo;
+  buildManual(t);
+}
+const mode = () => document.querySelector('[name=mode]:checked').value;
+function buildManual(t) {
+  $('#modeManual').replaceChildren(...t.fields.map((f) => {
+    const input = Object.assign(document.createElement('input'), { type: 'text', name: f.name, required: !f.optional, maxLength: 200 });
+    const label = document.createElement('label');
+    label.append(f.label + (f.optional ? ' (facultatif)' : ''), input);
+    return label;
+  }));
+}
+function onMode() {
+  const manual = mode() === 'manual';
+  $('#modeCsv').hidden = manual; $('#modeManual').hidden = !manual;
+  $('#csv').required = !manual;
+  for (const i of $('#modeManual').querySelectorAll('input')) i.disabled = !manual;
+}
+for (const r of document.querySelectorAll('[name=mode]')) r.addEventListener('change', onMode);
+const csvCell = (v) => `"${String(v).replace(/"/g, '""')}"`;
+function manualCsv() {
+  const t = templates.find((x) => x.id === $('#template').value);
+  const vals = t.fields.map((f) => $('#modeManual').querySelector(`[name="${f.name}"]`).value.trim());
+  return new Blob(['\uFEFF', t.fields.map((f) => csvCell(f.label)).join(';'), '\r\n', vals.map(csvCell).join(';'), '\r\n'], { type: 'text/csv' });
 }
 
 $('#template').addEventListener('change', onTemplate);
@@ -47,8 +69,8 @@ $('#jobForm').addEventListener('submit', async (e) => {
   const fd = new FormData();
   fd.append('templateId', $('#template').value);
   fd.append('marks', $('#marks').checked ? '1' : '0');
-  fd.append('csv', $('#csv').files[0]);
-  if ($('#logo').files[0] && !$('#logoRow').hidden) fd.append('logo', $('#logo').files[0]);
+  if (mode() === 'manual') fd.append('csv', manualCsv(), 'carte.csv');
+  else fd.append('csv', $('#csv').files[0]);
   $('#go').disabled = true; $('#busy').hidden = false;
   try {
     render(await api('/api/jobs', { method: 'POST', body: fd }));
@@ -111,4 +133,5 @@ function syncLayers() {
 }
 for (const cb of document.querySelectorAll('[data-layer]')) cb.addEventListener('change', syncLayers);
 
+onMode();
 try { const me = await api('/api/me'); await showApp(me.email); } catch { showLogin(); }

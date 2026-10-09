@@ -27,10 +27,17 @@
       <form id="jobForm" class="panel">
         <h2>1. Vos informations</h2>
         <label>Modèle <select id="template" name="templateId"></select></label>
-        <p class="hint">Un fichier CSV avec une ligne par carte. Colonnes : <b id="columns"></b>.
-          <a id="sample" href="#">Télécharger un CSV d'exemple</a></p>
-        <label>Fichier CSV <input type="file" id="csv" name="csv" accept=".csv,text/csv" required></label>
-        <label id="logoRow">Logo (facultatif, PNG ou JPEG, 300 ppi au format imprimé) <input type="file" id="logo" name="logo" accept="image/png,image/jpeg"></label>
+        <fieldset class="modes">
+          <legend>Comment saisir vos informations ?</legend>
+          <label><input type="radio" name="mode" value="csv" checked> Importer un fichier CSV</label>
+          <label><input type="radio" name="mode" value="manual"> Remplir une carte à la main</label>
+        </fieldset>
+        <div id="modeCsv">
+          <p class="hint">Un fichier CSV avec une ligne par carte. Colonnes : <b id="columns"></b>.
+            <a id="sample" href="#">Télécharger un CSV d'exemple</a></p>
+          <label>Fichier CSV <input type="file" id="csv" name="csv" accept=".csv,text/csv" required></label>
+        </div>
+        <div id="modeManual" hidden></div>
         <label class="check"><input type="checkbox" id="marks"> Inclure les traits de coupe (PDF plus grand, 103 × 73 mm)</label>
         <p class="error" id="jobError" role="alert"></p>
         <button class="primary" id="go">Générer les cartes</button>
