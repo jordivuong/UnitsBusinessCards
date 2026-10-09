@@ -61,3 +61,11 @@ input:focus-visible, select:focus-visible, button:focus-visible, .button:focus-v
 input[type=radio], input[type=checkbox] { accent-color: var(--accent); }
 a { color: var(--accent); }
 .top { border-bottom: 3px solid var(--accent); }
+.inline { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.inline label { margin: 0; flex: 1 1 180px; }
+.client h3, #draft h3 { margin: 12px 0 4px; font-size: .98rem; }
+.tpl { margin: 4px 0 12px; padding-left: 18px; }
+.problems { color: var(--err); margin: 4px 0 12px; padding-left: 18px; }
+.top a { font-size: .92rem; }
+.top #who { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }

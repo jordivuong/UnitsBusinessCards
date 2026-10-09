@@ -12,7 +12,8 @@ async function api(path, opts) {
 function showLogin() {
   $('#login').hidden = false; $('#app').hidden = true; $('#who').hidden = true;
 }
-async function showApp(email) {
+async function showApp(email, admin = false) {
+  $('#adminLink').hidden = !admin;
   $('#login').hidden = true; $('#app').hidden = false; $('#who').hidden = false;
   $('#whoEmail').textContent = email;
   templates = await api('/api/templates');
@@ -58,7 +59,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     const d = Object.fromEntries(new FormData(e.target));
     const me = await api('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(d) });
     e.target.reset();
-    await showApp(me.email);
+    await showApp(me.email, (await api('/api/me')).admin);
   } catch (err) { $('#loginError').textContent = err.message; }
 });
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); $('#results').hidden = true; showLogin(); });
@@ -134,4 +135,4 @@ function syncLayers() {
 for (const cb of document.querySelectorAll('[data-layer]')) cb.addEventListener('change', syncLayers);
 
 onMode();
-try { const me = await api('/api/me'); await showApp(me.email); } catch { showLogin(); }
+try { const me = await api('/api/me'); await showApp(me.email, me.admin); } catch { showLogin(); }

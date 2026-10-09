@@ -10,6 +10,10 @@ export const config = {
   iccDir: path.resolve(process.env.ICC_DIR || path.join(ROOT, 'icc')),
   fontsDir: path.join(ROOT, 'fonts'),
   clientsDir: path.resolve(process.env.CLIENTS_DIR || path.join(ROOT, 'clients')),
+  // Clients, polices et modèles gérés depuis la page Admin (inscriptible, dans le volume de données).
+  adminDir: path.resolve(process.env.ADMIN_CLIENTS_DIR || path.join(process.env.DATA_DIR || path.join(ROOT, 'data'), 'clients')),
+  adminEmails: new Set((process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)),
+  figmaToken: process.env.FIGMA_TOKEN || '',
   // Uniquement pour le développement : sans profil ECI, on utilise un profil CMJN générique de Ghostscript.
   allowTestProfile: process.env.ALLOW_TEST_PROFILE === '1',
   cookieSecure: process.env.COOKIE_SECURE === '1',

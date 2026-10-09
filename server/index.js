@@ -11,7 +11,8 @@ import { readCsv, sampleCsv } from './csv.js';
 import { renderCard } from './render.js';
 import { resolveProfile } from './profiles.js';
 import { userError } from './logo.js';
-import { clientOf, checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
+import { adminRouter } from './admin.js';
+import { isAdmin, clientOf, checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -49,8 +50,11 @@ app.post('/api/login', loginLimiter, (req, res) => {
 app.post('/api/logout', (req, res) => { setCookie(res, '', 0); res.json({ ok: true }); });
 app.get('/api/me', (req, res) => {
   const email = currentUser(req);
-  email ? res.json({ email, client: getClient(clientOf(email))?.name || null }) : res.status(401).json({ error: 'Non connecté.' });
+  email ? res.json({ email, client: getClient(clientOf(email))?.name || null, admin: isAdmin(email) }) : res.status(401).json({ error: 'Non connecté.' });
 });
+
+// --- Administration (modèles Figma, polices, clients, comptes)
+app.use('/api/admin', adminRouter());
 
 // --- Modèles
 app.get('/api/templates', requireAuth, (req, res) => {

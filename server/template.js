@@ -69,25 +69,45 @@ export function fontPath(name, template) {
 export const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 let cache;
-/** clients/<slug>/client.json + clients/<slug>/templates/*.json (+ clients/<slug>/fonts/*.otf). */
+export const resetClients = () => { cache = undefined; };
+export const clientFontDirs = (slug) => [path.join(config.adminDir, slug, 'fonts'), path.join(config.clientsDir, slug, 'fonts'), config.fontsDir];
+
+/**
+ * clients/<slug>/client.json + templates/*.json + fonts/*.otf, lus dans le dépôt (clients/, intégré, lecture seule)
+ * puis dans le volume de données (Admin). Un modèle Admin invalide est ignoré (journalisé) au lieu d'empêcher le démarrage.
+ */
 export function loadClients() {
   if (cache) return cache;
   cache = new Map();
-  if (!fs.existsSync(config.clientsDir)) return cache;
-  for (const slug of fs.readdirSync(config.clientsDir)) {
-    const dir = path.join(config.clientsDir, slug);
-    if (!SLUG.test(slug) || !fs.statSync(dir).isDirectory()) continue;
-    const meta = fs.existsSync(path.join(dir, 'client.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'client.json'), 'utf8')) : {};
-    const fontDirs = [path.join(dir, 'fonts'), config.fontsDir];
+  const roots = [config.clientsDir, config.adminDir];
+  const slugs = new Set();
+  for (const root of roots)
+    if (fs.existsSync(root))
+      for (const s of fs.readdirSync(root)) if (SLUG.test(s) && fs.statSync(path.join(root, s)).isDirectory()) slugs.add(s);
+  for (const slug of slugs) {
+    let name = slug;
     const templates = new Map();
-    const tdir = path.join(dir, 'templates');
-    for (const f of fs.existsSync(tdir) ? fs.readdirSync(tdir).filter((n) => n.endsWith('.json')) : []) {
-      const t = validateTemplate(JSON.parse(fs.readFileSync(path.join(tdir, f), 'utf8')), fontDirs);
-      t.fontDirs = fontDirs;
-      t.client = slug;
-      templates.set(t.id, t);
+    const fontDirs = clientFontDirs(slug);
+    for (const root of roots) {
+      const dir = path.join(root, slug);
+      if (!fs.existsSync(dir)) continue;
+      const meta = path.join(dir, 'client.json');
+      if (fs.existsSync(meta)) name = JSON.parse(fs.readFileSync(meta, 'utf8')).name || name;
+      const tdir = path.join(dir, 'templates');
+      for (const f of fs.existsSync(tdir) ? fs.readdirSync(tdir).filter((n) => n.endsWith('.json')) : []) {
+        try {
+          const t = validateTemplate(JSON.parse(fs.readFileSync(path.join(tdir, f), 'utf8')), fontDirs);
+          t.fontDirs = fontDirs;
+          t.client = slug;
+          t.builtin = root === config.clientsDir;
+          templates.set(t.id, t);
+        } catch (e) {
+          if (root === config.clientsDir) throw e;
+          console.error(`[admin] modèle ignoré ${slug}/${f} : ${e.message}`);
+        }
+      }
     }
-    cache.set(slug, { slug, name: meta.name || slug, templates });
+    cache.set(slug, { slug, name, templates });
   }
   return cache;
 }

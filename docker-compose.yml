@@ -6,6 +6,8 @@ services:
       - "3000"                  # non publié : seul Caddy y accède
     environment:
       COOKIE_SECURE: "1"
+      FIGMA_TOKEN: "${FIGMA_TOKEN:-}"            # import Figma (page Admin) ; défini dans .env, jamais dans le dépôt
+      ADMIN_EMAILS: "${ADMIN_EMAILS:-}"          # comptes autorisés sur la page Admin (séparés par des virgules)
       # ALLOW_TEST_PROFILE: "1" # essai SANS profil ICC (fichiers non imprimables)
     volumes:
       - cartes-data:/data       # comptes clients et secret de session

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administration — Cartes de visite</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Administration</h1>
+    <a href="/">← Retour au générateur</a>
+  </header>
+  <main>
+    <p class="error" id="fatal" role="alert"></p>
+    <div id="admin" hidden>
+      <section class="panel">
+        <h2>Clients</h2>
+        <div id="clients"></div>
+        <form id="clientForm" class="inline">
+          <label>Identifiant <input type="text" name="slug" pattern="[a-z0-9][a-z0-9\-]{0,39}" placeholder="acme" required></label>
+          <label>Nom affiché <input type="text" name="name" placeholder="ACME SA" required></label>
+          <button>Créer le client</button>
+        </form>
+        <p class="error" id="clientError" role="alert"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Importer un modèle depuis Figma</h2>
+        <p class="notice warn" id="noToken" hidden>Le jeton Figma n'est pas configuré sur le serveur.</p>
+        <p class="hint">Le designer suit les conventions de <code>docs/FIGMA.md</code>. Dans Figma : clic droit sur la section du modèle → <b>Copy link to selection</b>.</p>
+        <form id="importForm">
+          <label>Client <select name="client" id="importClient" required></select></label>
+          <label>Lien Figma de la section <input type="text" name="url" placeholder="https://www.figma.com/design/…?node-id=1-2" required></label>
+          <label>Identifiant du modèle <input type="text" name="id" pattern="[a-z0-9\-]{1,40}" placeholder="carte-v1" required></label>
+          <label>Nom du modèle <input type="text" name="name" placeholder="Carte ACME" required></label>
+          <p class="error" id="importError" role="alert"></p>
+          <ul class="problems" id="problems"></ul>
+          <button class="primary" id="importGo">Importer et prévisualiser</button>
+          <p class="hint" id="importBusy" hidden>Import en cours…</p>
+        </form>
+        <div id="draft" hidden>
+          <h3>Aperçu avec des valeurs d'exemple</h3>
+          <p class="notice warn" id="draftTest" hidden>Profil d'impression de TEST : ne pas envoyer ces fichiers à l'imprimeur.</p>
+          <ul class="warns" id="draftWarns"></ul>
+          <div id="draftSheets" class="cards"></div>
+          <p class="hint" id="draftInfo"></p>
+          <button class="primary" id="publish">Publier ce modèle</button>
+          <p class="error" id="publishError" role="alert"></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Polices du client</h2>
+        <p class="hint">Fichiers <code>.otf</code> nommés d'après le nom PostScript (ex. <code>Inter-SemiBold.otf</code>). Vérifiez la licence d'incorporation PDF.</p>
+        <form id="fontForm">
+          <label>Client <select name="client" id="fontClient" required></select></label>
+          <label>Polices <input type="file" id="fontFiles" accept=".otf" multiple required></label>
+          <p class="error" id="fontError" role="alert"></p>
+          <button>Ajouter les polices</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Créer un compte client</h2>
+        <form id="userForm">
+          <label>Client <select name="client" id="userClient" required></select></label>
+          <label>E-mail <input type="email" name="email" autocomplete="off" required></label>
+          <label>Mot de passe (10 caractères minimum) <input type="password" name="password" minlength="10" autocomplete="new-password" required></label>
+          <p class="error" id="userError" role="alert"></p>
+          <p class="hint" id="userOk" hidden></p>
+          <button>Créer le compte</button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <script src="admin.js" type="module"></script>
+</body>
+</html>

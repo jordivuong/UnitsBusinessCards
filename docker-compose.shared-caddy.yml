@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     environment:
       COOKIE_SECURE: "1"
+      FIGMA_TOKEN: "${FIGMA_TOKEN:-}"            # import Figma (page Admin) ; défini dans .env, jamais dans le dépôt
+      ADMIN_EMAILS: "${ADMIN_EMAILS:-}"          # comptes autorisés sur la page Admin (séparés par des virgules)
       ALLOW_TEST_PROFILE: "${ALLOW_TEST_PROFILE:-0}"   # =1 : essai SANS profil ICC (fichiers non imprimables)
     volumes:
       - cartes-data:/data

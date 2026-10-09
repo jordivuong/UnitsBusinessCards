@@ -78,6 +78,10 @@ export function requireAuth(req, res, next) {
   next();
 }
 export const currentUser = readSession;
+export const isAdmin = (email) => config.adminEmails.has(normEmail(email));
+export function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => (isAdmin(req.user) ? next() : res.status(403).json({ error: 'Réservé aux administrateurs.' })));
+}
 
 /** Limitation simple des tentatives de connexion (par IP) : 10 par 15 min. */
 const attempts = new Map();
