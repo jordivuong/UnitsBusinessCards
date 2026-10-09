@@ -11,7 +11,7 @@ const { renderCard } = await import('../server/render.js');
 const { readCsv } = await import('../server/csv.js');
 
 const hasGs = spawnSync('gs', ['--version']).status === 0;
-const t = getTemplate('classique-v1');
+const t = getTemplate('demo', 'classique-v1');
 const base = { nom: 'Jeanne Martin', titre: 'Directrice', telephone: '', email: 'j@exemple.fr', site: '' };
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-test-'));
 

@@ -23,7 +23,7 @@ cp .env.example .env   # DOMAIN=cartes.units-demo.com
 docker compose up -d --build
 
 # 2. Créer un compte client
-docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot-de-passe-long'
+docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot-de-passe-long' --client demo
 ```
 
 Caddy fournit le HTTPS automatiquement : copier `.env.example` en `.env` et y mettre le domaine. Procédure complète pour le VPS : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md).
@@ -36,18 +36,19 @@ Prérequis : Node 22, `ghostscript` (≥ 10), `imagemagick`, `poppler-utils`.
 
 ```bash
 npm ci
-ALLOW_TEST_PROFILE=1 DATA_DIR=./data node server/cli.js add-user moi@exemple.fr 'mot-de-passe-long'
+ALLOW_TEST_PROFILE=1 DATA_DIR=./data node server/cli.js add-user moi@exemple.fr 'mot-de-passe-long' --client demo
 ALLOW_TEST_PROFILE=1 DATA_DIR=./data npm start     # http://localhost:3000
 npm test
 ```
 
 `ALLOW_TEST_PROFILE=1` remplace le profil ECI par un profil générique : **fichiers non imprimables**.
 
-## Modèles
+## Clients et modèles
 
-Un fichier JSON par modèle dans `templates/` (format fini, fonds perdus, palette CMJN, éléments `rect`, `line`, `text`, `image`).
-Les colonnes du CSV sont les champs `text` du modèle (en-têtes insensibles à la casse et aux accents ; séparateur `,` `;` ou tabulation).
-Le modèle est validé au démarrage (palette ≤ 300 % d'encre, polices présentes, logo dans la zone de sécurité…).
+Un dossier par client dans `clients/<slug>/` (modèles, polices) ; chaque compte est rattaché à un client et ne voit que ses modèles.
+Les modèles sont **générés depuis Figma** : procédure, conventions de nommage et liste de vérification dans [`docs/FIGMA.md`](docs/FIGMA.md).
+Les colonnes du CSV sont les champs modifiables du modèle (en-têtes insensibles à la casse et aux accents ; séparateur `,` `;` ou tabulation).
+Le modèle est validé à l'import et au démarrage (palette ≤ 300 % d'encre, polices présentes, logo dans la zone de sécurité…).
 
 ## Points à valider avec l'imprimeur
 

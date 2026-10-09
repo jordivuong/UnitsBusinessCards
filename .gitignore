@@ -3,3 +3,4 @@ data/
 icc/*.icc
 icc/*.icm
 .env
+out/

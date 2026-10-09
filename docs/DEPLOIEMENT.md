@@ -51,12 +51,15 @@ docker compose logs -f cartes       # doit afficher « UnitsBusinessCards sur ht
 ## 4. Comptes clients
 
 ```bash
-docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot-de-passe-long-10-car-min'
+docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot-de-passe-long-10-car-min' --client demo
 ```
 
 Relancer la même commande avec le même e-mail change le mot de passe.
 
 ## 5. Mise à jour
+
+Nouveau client ou nouveau modèle (dossier `clients/`) : `git pull && docker compose restart cartes` suffit (voir `docs/FIGMA.md`).
+Code de l'application :
 
 ```bash
 cd UnitsBusinessCards && git pull && docker compose up -d --build

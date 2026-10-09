@@ -6,12 +6,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config, ROOT } from './config.js';
-import { loadTemplates, getTemplate, SAFE_MM } from './template.js';
+import { loadClients, getClient, getTemplate, SAFE_MM } from './template.js';
 import { readCsv, sampleCsv } from './csv.js';
 import { renderCard, prepareLogo } from './render.js';
 import { resolveProfile } from './profiles.js';
 import { sniff, userError } from './logo.js';
-import { checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
+import { clientOf, checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -49,19 +49,19 @@ app.post('/api/login', loginLimiter, (req, res) => {
 app.post('/api/logout', (req, res) => { setCookie(res, '', 0); res.json({ ok: true }); });
 app.get('/api/me', (req, res) => {
   const email = currentUser(req);
-  email ? res.json({ email }) : res.status(401).json({ error: 'Non connecté.' });
+  email ? res.json({ email, client: getClient(clientOf(email))?.name || null }) : res.status(401).json({ error: 'Non connecté.' });
 });
 
 // --- Modèles
 app.get('/api/templates', requireAuth, (req, res) => {
-  res.json([...loadTemplates().values()].map((t) => ({
+  res.json([...(getClient(req.client)?.templates.values() ?? [])].map((t) => ({
     id: t.id, name: t.name, trim: t.trim, bleed: t.bleed, safe: SAFE_MM,
     fields: t.fields, hasLogo: t.pages.some((p) => p.elements.some((e) => e.type === 'image')),
     testProfile: (() => { try { return resolveProfile(t.profile).isTest; } catch { return null; } })(),
   })));
 });
 app.get('/api/templates/:id/exemple.csv', requireAuth, (req, res) => {
-  const t = getTemplate(req.params.id);
+  const t = getTemplate(req.client, req.params.id);
   if (!t) return res.status(404).json({ error: 'Modèle introuvable.' });
   res.type('text/csv; charset=utf-8').attachment(`exemple-${t.id}.csv`).send(sampleCsv(t));
 });
@@ -74,7 +74,7 @@ app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }, 
   const id = crypto.randomBytes(16).toString('hex');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-'));
   try {
-    const template = getTemplate(req.body?.templateId);
+    const template = getTemplate(req.client, req.body?.templateId);
     if (!template) throw userError('Modèle introuvable.');
     const csvFile = req.files?.csv?.[0];
     if (!csvFile) throw userError('Ajoutez un fichier CSV.');
@@ -158,10 +158,11 @@ app.use((err, req, res, next) => {
 
 // Au démarrage : modèles valides et profil ICC présent (sinon refus, sauf mode test explicite).
 try {
-  for (const t of loadTemplates().values()) {
-    const p = resolveProfile(t.profile);
-    if (p.isTest) console.warn(`⚠ Profil ICC de TEST utilisé pour ${t.id} : ne pas imprimer ces fichiers.`);
-  }
+  for (const c of loadClients().values())
+    for (const t of c.templates.values()) {
+      const p = resolveProfile(t.profile);
+      if (p.isTest) console.warn(`⚠ Profil ICC de TEST utilisé pour ${c.slug}/${t.id} : ne pas imprimer ces fichiers.`);
+    }
 } catch (e) {
   console.error(e.message);
   process.exit(1);

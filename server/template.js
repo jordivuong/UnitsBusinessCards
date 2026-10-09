@@ -13,7 +13,7 @@ function fail(id, msg) {
   throw new Error(`Template ${id} : ${msg}`);
 }
 
-export function validateTemplate(t) {
+export function validateTemplate(t, fontDirs = [config.fontsDir]) {
   const id = t.id || '(sans id)';
   if (!/^[a-z0-9-]+$/.test(t.id || '')) fail(id, 'id invalide');
   if (!(t.trim?.w > 0 && t.trim?.h > 0)) fail(id, 'format fini manquant');
@@ -34,7 +34,7 @@ export function validateTemplate(t) {
       if (el.stroke && !t.palette[el.stroke]) fail(id, `couleur inconnue : ${el.stroke}`);
       if (el.type === 'line' && !(el.width >= 0.25)) fail(id, 'filet de moins de 0,25 pt');
       if (el.type === 'text') {
-        if (!fs.existsSync(fontPath(el.font))) fail(id, `police introuvable : ${el.font}`);
+        if (!fontPath(el.font, { fontDirs })) fail(id, `police introuvable : ${el.font}.otf (à placer dans le dossier fonts/ du client)`);
         if (!(el.minSize >= 6)) fail(id, 'corps minimum 6 pt');
         if (el.field) {
           if (fieldNames.has(el.field)) fail(id, `champ en double : ${el.field}`);
@@ -56,22 +56,41 @@ export function validateTemplate(t) {
   return t;
 }
 
-export function fontPath(name) {
-  if (!/^[A-Za-z0-9-]+$/.test(name || '')) return '/nonexistent';
-  return path.join(config.fontsDir, `${name}.otf`);
+/** Chemin d'une police (nom PostScript) : dossier fonts/ du client d'abord, puis polices partagées. */
+export function fontPath(name, template) {
+  if (!/^[A-Za-z0-9-]+$/.test(name || '')) return null;
+  for (const dir of template.fontDirs) {
+    const f = path.join(dir, `${name}.otf`);
+    if (fs.existsSync(f)) return f;
+  }
+  return null;
 }
 
+export const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
 let cache;
-export function loadTemplates() {
+/** clients/<slug>/client.json + clients/<slug>/templates/*.json (+ clients/<slug>/fonts/*.otf). */
+export function loadClients() {
   if (cache) return cache;
   cache = new Map();
-  for (const f of fs.readdirSync(config.templatesDir).filter((n) => n.endsWith('.json'))) {
-    const t = validateTemplate(JSON.parse(fs.readFileSync(path.join(config.templatesDir, f), 'utf8')));
-    cache.set(t.id, t);
+  if (!fs.existsSync(config.clientsDir)) return cache;
+  for (const slug of fs.readdirSync(config.clientsDir)) {
+    const dir = path.join(config.clientsDir, slug);
+    if (!SLUG.test(slug) || !fs.statSync(dir).isDirectory()) continue;
+    const meta = fs.existsSync(path.join(dir, 'client.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'client.json'), 'utf8')) : {};
+    const fontDirs = [path.join(dir, 'fonts'), config.fontsDir];
+    const templates = new Map();
+    const tdir = path.join(dir, 'templates');
+    for (const f of fs.existsSync(tdir) ? fs.readdirSync(tdir).filter((n) => n.endsWith('.json')) : []) {
+      const t = validateTemplate(JSON.parse(fs.readFileSync(path.join(tdir, f), 'utf8')), fontDirs);
+      t.fontDirs = fontDirs;
+      t.client = slug;
+      templates.set(t.id, t);
+    }
+    cache.set(slug, { slug, name: meta.name || slug, templates });
   }
   return cache;
 }
 
-export function getTemplate(id) {
-  return loadTemplates().get(id);
-}
+export const getClient = (slug) => loadClients().get(slug);
+export const getTemplate = (slug, id) => getClient(slug)?.templates.get(id);

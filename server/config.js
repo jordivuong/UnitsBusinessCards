@@ -9,7 +9,7 @@ export const config = {
   dataDir: path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data')),
   iccDir: path.resolve(process.env.ICC_DIR || path.join(ROOT, 'icc')),
   fontsDir: path.join(ROOT, 'fonts'),
-  templatesDir: path.join(ROOT, 'templates'),
+  clientsDir: path.resolve(process.env.CLIENTS_DIR || path.join(ROOT, 'clients')),
   // Uniquement pour le développement : sans profil ECI, on utilise un profil CMJN générique de Ghostscript.
   allowTestProfile: process.env.ALLOW_TEST_PROFILE === '1',
   cookieSecure: process.env.COOKIE_SECURE === '1',

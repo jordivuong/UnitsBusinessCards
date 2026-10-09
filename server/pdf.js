@@ -82,7 +82,7 @@ function drawText(doc, template, el, values, toPt, color, warnings) {
     throw userError(`Le champ « ${label} » est trop long (${[...text].length} caractères, maximum ${el.maxChars}).`);
   }
 
-  doc.font(fontPath(el.font));
+  doc.font(fontPath(el.font, template));
   const missing = [...new Set([...text].filter((ch) => !doc._font.font.hasGlyphForCodePoint(ch.codePointAt(0))))];
   if (missing.length) throw userError(`Le champ « ${label} » contient des caractères absents de la police : ${missing.join(' ')}`);
 

@@ -10,6 +10,7 @@ services:
     volumes:
       - cartes-data:/data       # comptes clients et secret de session
       - ./icc:/app/icc:ro       # profils ICC (non versionnés, voir icc/README.md)
+      - ./clients:/app/clients:ro   # un dossier par client (modèles, polices) : voir docs/FIGMA.md
 
   caddy:
     image: caddy:2

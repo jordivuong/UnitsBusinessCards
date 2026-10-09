@@ -9,7 +9,10 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test tests/*.test.js",
-    "user:add": "node server/cli.js add-user"
+    "user:add": "node server/cli.js add-user",
+    "client:new": "node server/cli.js new-client",
+    "figma:import": "node tools/figma-import.mjs",
+    "template:check": "node tools/template-check.mjs"
   },
   "dependencies": {
     "archiver": "^8.0.0",

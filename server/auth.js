@@ -23,14 +23,17 @@ function hash(password, salt = crypto.randomBytes(16).toString('hex')) {
   return { salt, hash: crypto.scryptSync(password, salt, 64).toString('hex') };
 }
 
-export function addUser(email, password) {
+export function addUser(email, password, client) {
   email = normEmail(email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Adresse e-mail invalide.');
   if (String(password).length < 10) throw new Error('Mot de passe : 10 caractères minimum.');
   const users = load();
-  users[email] = hash(password);
+  if (!client) throw new Error('Client obligatoire (--client <slug>).');
+  users[email] = { ...hash(password), client };
   save(users);
 }
+
+export const clientOf = (email) => load()[normEmail(email)]?.client;
 
 export function checkLogin(email, password) {
   const u = load()[normEmail(email)];
@@ -70,6 +73,8 @@ export function requireAuth(req, res, next) {
   const email = readSession(req);
   if (!email) return res.status(401).json({ error: 'Veuillez vous connecter.' });
   req.user = email;
+  req.client = clientOf(email);
+  if (!req.client) return res.status(403).json({ error: 'Compte non rattaché à un client : contactez l\'administrateur.' });
   next();
 }
 export const currentUser = readSession;
