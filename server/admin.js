@@ -24,6 +24,21 @@ export function parseFigmaUrl(raw) {
   return { file: m[2] || m[1], node: node.replace('-', ':') };
 }
 
+const isModel = (n) => (n.children || []).some((c) => /^palette\b/i.test(c.name)) && (n.children || []).some((c) => /^page:/i.test(c.name));
+/**
+ * Un lien vers une page ou un grand cadre contient souvent le modèle (section avec « palette » et « page:recto ») :
+ * on le retrouve s'il est unique (2 niveaux de profondeur), sinon on demande le lien de la section voulue.
+ */
+export function findModelRoot(root) {
+  if (isModel(root)) return { node: root };
+  const found = [];
+  const walk = (n, depth) => { for (const c of n.children || []) { if (isModel(c)) found.push(c); else if (depth < 2) walk(c, depth + 1); } };
+  walk(root, 0);
+  if (found.length === 1) return { node: found[0] };
+  if (found.length > 1) return { error: `Ce lien contient plusieurs modèles (${found.map((n) => `« ${n.name} »`).join(', ')}) : copiez le lien de la section voulue (clic droit sur la section → Copy link to selection).` };
+  return { node: root };
+}
+
 const userErr = (message, status = 422) => Object.assign(new Error(message), { status });
 
 async function fetchFigmaNode({ file, node }) {
@@ -124,7 +139,9 @@ export function adminRouter() {
     const builtin = getClient(slug).templates.get(id)?.builtin;
     if (builtin) throw userErr('Cet identifiant est celui d\'un modèle intégré : choisissez-en un autre.');
 
-    const root = await fetchFigmaNode(ref);
+    const picked = findModelRoot(await fetchFigmaNode(ref));
+    if (picked.error) throw userErr(picked.error);
+    const root = picked.node;
     const { template, errors, warnings } = figmaToTemplate(root, { id, name: String(name || id).trim().slice(0, 80) });
     if (!template) return res.status(422).json({ error: 'Le design Figma ne respecte pas les conventions.', problems: errors, warnings });
     const fontDirs = clientFontDirs(slug);
