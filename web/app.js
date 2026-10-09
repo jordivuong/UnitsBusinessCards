@@ -20,6 +20,7 @@ async function showApp(email, admin = false) {
   const sel = $('#template');
   sel.replaceChildren(...templates.map((t) => Object.assign(document.createElement('option'), { value: t.id, textContent: `${t.name} (${t.trim.w} × ${t.trim.h} mm)` })));
   onTemplate();
+  await loadCards();
 }
 function onTemplate() {
   const t = templates.find((x) => x.id === $('#template').value);
@@ -62,7 +63,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     await showApp(me.email, (await api('/api/me')).admin);
   } catch (err) { $('#loginError').textContent = err.message; }
 });
-$('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); $('#results').hidden = true; showLogin(); });
+$('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); $('#results').hidden = true; $('#editForm').hidden = true; showLogin(); });
 
 $('#jobForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -75,6 +76,7 @@ $('#jobForm').addEventListener('submit', async (e) => {
   $('#go').disabled = true; $('#busy').hidden = false;
   try {
     render(await api('/api/jobs', { method: 'POST', body: fd }));
+    await loadCards();
   } catch (err) { $('#jobError').textContent = err.message; }
   finally { $('#go').disabled = false; $('#busy').hidden = true; }
 });
@@ -127,6 +129,71 @@ function render(job) {
   syncLayers();
   $('#results').scrollIntoView({ behavior: 'smooth' });
 }
+
+// --- Cartes enregistrées
+const h = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+let myCards = [], editing = null;
+
+async function loadCards() {
+  myCards = await api('/api/cards');
+  $('#myCards').hidden = !myCards.length;
+  $('#cardList').replaceChildren(...myCards.map((c) => {
+    const cb = h('input', { type: 'checkbox', value: c.id, disabled: !c.available, ariaLabel: `Sélectionner ${c.label}` });
+    cb.addEventListener('change', syncSelection);
+    const when = new Date(c.updatedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    const btn = (text, fn, disabled = false) => { const b = h('button', { textContent: text, disabled }); b.addEventListener('click', fn); return b; };
+    return h('li', {},
+      cb,
+      h('span', { className: 'cinfo' }, h('b', { textContent: c.label }), ` — ${c.templateName}${c.available ? '' : ' (modèle indisponible)'} · ${when}`),
+      btn('Aperçu / PDF', () => renderCards([c.id]), !c.available),
+      btn('Modifier', () => openEdit(c), !c.available),
+      btn('Supprimer', () => removeCard(c)));
+  }));
+  syncSelection();
+}
+const selectedIds = () => [...document.querySelectorAll('#cardList input:checked')].map((i) => i.value);
+function syncSelection() { $('#zipSelected').disabled = !selectedIds().length; }
+
+async function renderCards(ids) {
+  $('#cardsError').textContent = '';
+  try { render(await api('/api/cards/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids, marks: $('#marks').checked }) })); }
+  catch (err) { $('#cardsError').textContent = err.message; }
+}
+$('#zipSelected').addEventListener('click', () => renderCards(selectedIds()));
+
+async function removeCard(c) {
+  if (!confirm(`Supprimer définitivement la carte « ${c.label} » ?`)) return;
+  try { await api(`/api/cards/${c.id}`, { method: 'DELETE' }); if (editing?.id === c.id) closeEdit(); await loadCards(); }
+  catch (err) { $('#cardsError').textContent = err.message; }
+}
+
+function openEdit(c) {
+  const t = templates.find((x) => x.id === c.templateId);
+  if (!t) return;
+  editing = c;
+  $('#editTitle').textContent = `Modifier la carte : ${c.label}`;
+  $('#editFields').replaceChildren(...t.fields.map((f) => {
+    const input = h('input', { type: 'text', name: f.name, value: c.values[f.name] ?? '', required: !f.optional, maxLength: f.maxChars || 60 });
+    return h('label', {}, f.label + (f.optional ? ' (facultatif)' : ''), input);
+  }));
+  $('#editMarks').checked = $('#marks').checked;
+  $('#editError').textContent = '';
+  $('#editForm').hidden = false;
+  $('#editForm').scrollIntoView({ behavior: 'smooth' });
+}
+function closeEdit() { editing = null; $('#editForm').hidden = true; }
+$('#editCancel').addEventListener('click', closeEdit);
+$('#editForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#editError').textContent = '';
+  const values = Object.fromEntries([...$('#editFields').querySelectorAll('input')].map((i) => [i.name, i.value]));
+  $('#editSave').disabled = true;
+  try {
+    const job = await api(`/api/cards/${editing.id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ values, marks: $('#editMarks').checked }) });
+    closeEdit(); render(job); await loadCards();
+  } catch (err) { $('#editError').textContent = err.message; }
+  finally { $('#editSave').disabled = false; }
+});
 
 function syncLayers() {
   for (const sheet of document.querySelectorAll('.sheet'))

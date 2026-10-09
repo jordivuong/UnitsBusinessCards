@@ -24,6 +24,22 @@
     </section>
 
     <section id="app" hidden>
+      <section id="myCards" class="panel" hidden>
+        <h2>Mes cartes enregistrées</h2>
+        <p class="hint">Les cartes générées sont conservées : modifiez leurs champs, régénérez le PDF à tout moment.</p>
+        <ul id="cardList" class="cardlist"></ul>
+        <p class="error" id="cardsError" role="alert"></p>
+        <button id="zipSelected" disabled>Générer les PDF des cartes cochées</button>
+      </section>
+      <form id="editForm" class="panel" hidden>
+        <h2 id="editTitle">Modifier la carte</h2>
+        <div id="editFields"></div>
+        <label class="check"><input type="checkbox" id="editMarks"> Inclure les traits de coupe</label>
+        <p class="error" id="editError" role="alert"></p>
+        <button class="primary" id="editSave">Enregistrer et régénérer</button>
+        <button type="button" id="editCancel">Annuler</button>
+      </form>
+
       <form id="jobForm" class="panel">
         <h2>1. Vos informations</h2>
         <label>Modèle <select id="template" name="templateId"></select></label>

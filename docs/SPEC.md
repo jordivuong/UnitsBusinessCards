@@ -150,7 +150,7 @@ Points d'attention :
 - gs lancé par spawn avec arguments fixes, jamais via un shell. Aucun texte utilisateur dans du PostScript.
 - Dossier temporaire unique par requête, supprimé en fin de traitement.
 - Uploads : PNG et JPEG uniquement, 10 Mo maximum, contrôle des signatures de fichier, limite de dimensions, limitation de débit.
-- Aucune conservation des PDF ni des données saisies ; logs sans données personnelles.
+- Aucune conservation des PDF ; les valeurs des champs des cartes générées sont conservées par client (`/data/cards`) pour être modifiées ; logs sans données personnelles.
 - Licences : Ghostscript est sous AGPL (utilisation en sous-processus non modifié) ; profils ICC ECI et polices : vérifier les conditions.
 
 ## 10. Structure du dépôt suggérée

@@ -27,8 +27,8 @@ docker compose exec cartes node server/cli.js add-user client@exemple.fr 'un-mot
 ```
 
 Caddy fournit le HTTPS automatiquement : copier `.env.example` en `.env` et y mettre le domaine. Procédure complète pour le VPS : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md).
-Les comptes et le secret de session sont dans le volume `/data`. Aucun PDF ni donnée saisie n'est conservé :
-les envois sont supprimés après 30 minutes (ou au redémarrage).
+Les comptes et le secret de session sont dans le volume `/data`. Les cartes générées sont enregistrées (valeurs des champs, par client, dans `/data/cards`) et restent modifiables ; les PDF, eux,
+ne sont pas conservés : ils sont régénérés à la demande, et les envois temporaires supprimés après 30 minutes.
 
 ## Développement local
 

@@ -74,5 +74,5 @@ Les comptes (volume `cartes-data`) et les certificats (volume `caddy-data`) sont
 
 ## Sauvegarde
 
-Seul le volume `cartes-data` contient des données (comptes). Aucun PDF n'est conservé.
+Seul le volume `cartes-data` contient des données : comptes, modèles/polices de la page Admin (`clients/`) et cartes enregistrées (`cards/`). Aucun PDF n'est conservé. À sauvegarder.
 `docker run --rm -v unitsbusinesscards_cartes-data:/d -v "$PWD":/b alpine tar czf /b/cartes-data.tgz -C /d .`

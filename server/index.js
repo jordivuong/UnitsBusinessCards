@@ -12,6 +12,7 @@ import { renderCard } from './render.js';
 import { resolveProfile } from './profiles.js';
 import { userError } from './logo.js';
 import { adminRouter } from './admin.js';
+import { listCards, getCard, createCard, updateCard, deleteCard, cleanValues, cardLabel } from './cards.js';
 import { isAdmin, clientOf, checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
 
 const app = express();
@@ -73,47 +74,99 @@ app.get('/api/templates/:id/exemple.csv', requireAuth, (req, res) => {
 // --- Génération
 const slug = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'carte';
 
-app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }]), async (req, res) => {
+/** Génère les cartes de `rows` ({ line, values, cardId? }) et enregistre l'envoi (aperçus/PDF/ZIP) pendant jobTtlMs. */
+async function runJob(user, template, rows, withMarks) {
   const t0 = Date.now();
   const id = crypto.randomBytes(16).toString('hex');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-'));
   try {
-    const template = getTemplate(req.client, req.body?.templateId);
-    if (!template) throw userError('Modèle introuvable.');
-    const csvFile = req.files?.csv?.[0];
-    if (!csvFile) throw userError('Ajoutez un fichier CSV.');
-    if (csvFile.size > 1024 * 1024) throw userError('Le CSV est trop volumineux (1 Mo maximum).');
-    const withMarks = req.body.marks === '1';
-
-    const { rows, errors } = readCsv(csvFile.buffer, template, config.maxRows);
-    if (errors.length) throw userError(errors.join(' '));
-
     const cards = [], failed = [];
     let n = 0;
     for (const row of rows) {
       const name = `carte-${String(++n).padStart(2, '0')}-${slug(row.values.nom || row.values[template.fields[0].name])}`;
       try {
         const r = await renderCard(template, row.values, { dir, withMarks, logo: null, name });
-        cards.push({ n, line: row.line, label: row.values.nom || name, pdf: r.pdf, previews: r.previews, warnings: r.warnings });
+        cards.push({ n, line: row.line, cardId: row.cardId, values: row.values, label: row.values.nom || name, pdf: r.pdf, previews: r.previews, warnings: r.warnings });
       } catch (e) {
         if (!e.user) console.error('[render]', e.message);
-        failed.push({ line: row.line, label: row.values.nom || '', error: e.user ? e.message : 'Erreur interne lors de la génération.' });
+        failed.push({ line: row.line, cardId: row.cardId, label: row.values.nom || '', error: e.user ? e.message : 'Erreur interne lors de la génération.' });
       }
     }
-
-    jobs.set(id, { dir, user: req.user, created: Date.now(), cards });
+    jobs.set(id, { dir, user, created: Date.now(), cards });
     console.log(`[job] ${id.slice(0, 8)} ${cards.length} ok, ${failed.length} erreurs, ${Date.now() - t0} ms`);
-    res.json({
-      id, withMarks, cards: cards.map((c) => ({ n: c.n, line: c.line, label: c.label, pages: c.previews.length, warnings: c.warnings })),
+    return {
+      id, withMarks, template: template.id, cards: cards.map((c) => ({ n: c.n, line: c.line, cardId: c.cardId, values: c.values, label: c.label, pages: c.previews.length, warnings: c.warnings })),
       failed, testProfile: (() => { try { return resolveProfile(template.profile).isTest; } catch { return null; } })(),
       geometry: { trim: template.trim, bleed: template.bleed, safe: SAFE_MM, marks: withMarks },
-    });
+    };
   } catch (e) {
     fs.rmSync(dir, { recursive: true, force: true });
-    if (e.user) return res.status(422).json({ error: e.message });
-    console.error('[jobs]', e.message);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+    throw e;
   }
+}
+const fail = (res, e, tag) => {
+  if (e.user) return res.status(422).json({ error: e.message });
+  console.error(`[${tag}]`, e.message);
+  res.status(500).json({ error: 'Erreur interne du serveur.' });
+};
+
+app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }]), async (req, res) => {
+  try {
+    const template = getTemplate(req.client, req.body?.templateId);
+    if (!template) throw userError('Modèle introuvable.');
+    const csvFile = req.files?.csv?.[0];
+    if (!csvFile) throw userError('Ajoutez un fichier CSV.');
+    if (csvFile.size > 1024 * 1024) throw userError('Le CSV est trop volumineux (1 Mo maximum).');
+    const { rows, errors } = readCsv(csvFile.buffer, template, config.maxRows);
+    if (errors.length) throw userError(errors.join(' '));
+    const job = await runJob(req.user, template, rows, req.body.marks === '1');
+    // Les cartes générées sont enregistrées : on les retrouve et on les modifie dans « Mes cartes ».
+    for (const c of job.cards) {
+      const saved = createCard(req.client, req.user, { templateId: template.id, values: c.values, label: cardLabel(template, c.values) });
+      c.cardId = saved.id;
+      jobs.get(job.id).cards.find((x) => x.n === c.n).cardId = saved.id;
+    }
+    res.json(job);
+  } catch (e) { fail(res, e, 'jobs'); }
+});
+
+// --- Cartes enregistrées
+const withTemplate = (client, card) => {
+  const t = getTemplate(client, card.templateId);
+  return { ...card, templateName: t?.name || card.templateId, available: !!t };
+};
+app.get('/api/cards', requireAuth, (req, res) => res.json(listCards(req.client).map((c) => withTemplate(req.client, c))));
+
+app.delete('/api/cards/:id', requireAuth, (req, res) =>
+  deleteCard(req.client, req.params.id) ? res.json({ ok: true }) : res.status(404).json({ error: 'Carte introuvable.' }));
+
+/** Génère les PDF/aperçus de cartes enregistrées (ids) : ouverture, ou téléchargement groupé. */
+app.post('/api/cards/render', requireAuth, async (req, res) => {
+  try {
+    const ids = [...new Set(Array.isArray(req.body?.ids) ? req.body.ids : [])].slice(0, config.maxRows);
+    const saved = ids.map((id) => getCard(req.client, id)).filter(Boolean);
+    if (!saved.length) throw userError('Aucune carte sélectionnée.');
+    const tid = saved[0].templateId;
+    if (saved.some((c) => c.templateId !== tid)) throw userError('Sélectionnez des cartes du même modèle.');
+    const template = getTemplate(req.client, tid);
+    if (!template) throw userError('Le modèle de ces cartes n\'est plus disponible.');
+    res.json(await runJob(req.user, template, saved.map((c, i) => ({ line: i + 1, values: c.values, cardId: c.id })), req.body.marks === true));
+  } catch (e) { fail(res, e, 'cards'); }
+});
+
+/** Modification des champs d'une carte : la carte n'est enregistrée que si la génération réussit. */
+app.put('/api/cards/:id', requireAuth, async (req, res) => {
+  try {
+    const card = getCard(req.client, req.params.id);
+    if (!card) return res.status(404).json({ error: 'Carte introuvable.' });
+    const template = getTemplate(req.client, card.templateId);
+    if (!template) throw userError('Le modèle de cette carte n\'est plus disponible.');
+    const values = cleanValues(template, req.body?.values);
+    const job = await runJob(req.user, template, [{ line: 1, values, cardId: card.id }], req.body?.marks === true);
+    if (job.failed.length) throw userError(job.failed[0].error);
+    updateCard(req.client, req.user, card.id, { values, label: cardLabel(template, values) });
+    res.json(job);
+  } catch (e) { fail(res, e, 'cards'); }
 });
 
 function ownJob(req, res) {
