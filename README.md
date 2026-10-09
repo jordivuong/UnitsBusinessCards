@@ -19,7 +19,7 @@ Le logo (PNG/JPEG) est converti en CMJN via ImageMagick/lcms2 (intention relativ
 
 ```bash
 # 1. Placer le profil ICC (voir icc/README.md) : icc/ISOcoated_v2_300_eci.icc
-cp .env.example .env   # DOMAIN=cartes.units-demo.com
+cp .env.example .env   # DOMAIN=client.units.design
 docker compose up -d --build
 
 # 2. Créer un compte client
