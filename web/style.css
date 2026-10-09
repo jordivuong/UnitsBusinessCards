@@ -73,3 +73,4 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .cardlist li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); }
 .cardlist .cinfo { flex: 1 1 220px; }
 .cardlist button { padding: 6px 12px; font-size: .9rem; }
+[hidden] { display: none !important; }
