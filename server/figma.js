@@ -47,8 +47,13 @@ function colorOf(n, tag, ctx, label) {
     if (sw && dist(sw, actual) > 40) ctx.warnings.push(`${label} : la couleur Figma diffère de la pastille « ${declared} » (aperçu seulement, le CMJN déclaré fait foi).`);
     return declared;
   }
-  const near = Object.entries(ctx.swatchRgb).filter(([, s]) => dist(s, actual) <= 8).map(([k]) => k);
-  if (near.length === 1) return near[0];
+  const ranked = Object.entries(ctx.swatchRgb).map(([k, sw]) => [k, dist(sw, actual)]).sort((x, y) => x[1] - y[1]);
+  if (ranked.length && ranked[0][1] <= 8 && !(ranked[1] && ranked[1][1] <= 8)) return ranked[0][0];
+  if (ranked.length) {
+    // Aucune pastille identique : on prend la plus proche et on le signale (aperçu avant publication ; fill=/stroke= pour imposer).
+    ctx.warnings.push(`${label} : couleur approchée par « ${ranked[0][0]} » (écart ${ranked[0][1]}/255) ; ajoutez ${tag}=<nom de palette> si ce n'est pas la bonne.`);
+    return ranked[0][0];
+  }
   ctx.errors.push(`${label} : couleur non déterminée, ajoutez ${tag}=<nom de palette>.`);
   return null;
 }

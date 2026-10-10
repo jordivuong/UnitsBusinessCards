@@ -69,7 +69,6 @@ test('refus : opacité, effets, vecteur, largeur auto, couleur inconnue', () => 
   assert.match(errorsOf((r) => { page(r).children[1].effects = [{ type: 'DROP_SHADOW' }]; }), /effets/);
   assert.match(errorsOf((r) => { page(r).children.push({ type: 'GROUP_INCONNU', name: 'forme', ...box(OX, OY, 1, 1) }); }), /non géré/);
   assert.match(errorsOf((r) => { page(r).children[2].textAutoResize = 'WIDTH_AND_HEIGHT'; }), /largeur automatique/);
-  assert.match(errorsOf((r) => { page(r).children[1].fills = solid(10, 200, 10); }), /couleur non déterminée/);
   assert.match(errorsOf((r) => { page(r).children[2].name = 'champ:nom fill=inconnue'; }), /absente de la palette/);
   assert.match(errorsOf((r) => { r.children.shift(); }), /palette/);
 });
@@ -121,5 +120,13 @@ test('formes vectorielles : refus clairs', () => {
   assert.match(errorsOf((r) => { page(r).children.push(logoNode({ rotation: 0.5 })); }), /rotation/);
   assert.match(errorsOf((r) => { page(r).children.push(logoNode({ fills: [{ type: 'GRADIENT_LINEAR' }] })); }), /dégradé ou image/);
   assert.match(errorsOf((r) => { page(r).children.push(logoNode({ isMask: true })); }), /masque/);
-  assert.match(errorsOf((r) => { page(r).children.push(logoNode({ fills: solid(10, 200, 10), name: 'logo' })); }), /couleur non déterminée/);
+});
+
+test('couleur sans pastille identique : la plus proche, avec avertissement', () => {
+  const out = figmaToTemplate(fixture((r) => { r.children[1].children.push(logoNode({ fills: solid(40, 36, 38), name: 'logo' })); }), { id: 'demo', name: 'D' });
+  assert.deepEqual(out.errors, []);
+  assert.equal(out.template.pages[0].elements.find((e) => e.type === 'path').fill, 'encre'); // proche à 8/255 près : sans avertissement
+  const far = figmaToTemplate(fixture((r) => { r.children[1].children.push(logoNode({ fills: solid(10, 200, 10), name: 'logo' })); }), { id: 'demo', name: 'D' });
+  assert.deepEqual(far.errors, []);
+  assert.match(far.warnings.join('\n'), /« logo » : couleur approchée par « \w+ » \(écart \d+\/255\)/);
 });
