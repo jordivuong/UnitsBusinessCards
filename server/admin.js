@@ -8,6 +8,7 @@ import { config } from './config.js';
 import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, readSettings, writeSettings, isBuiltinClient } from './template.js';
 import { figmaToTemplate } from './figma.js';
 import { renderCard } from './render.js';
+import { previewFor, sampleValues } from './previews.js';
 import { addUser, requireAdmin, listUsers, deleteUser, isAdmin, clientOf } from './auth.js';
 
 const ID = /^[a-z0-9-]{1,40}$/;
@@ -57,12 +58,6 @@ async function fetchFigmaNode({ file, node }) {
   return doc;
 }
 
-const SAMPLE = {
-  nom: 'Jeanne Martin', titre: 'Directrice commerciale', telephone: '01 23 45 67 89',
-  email: 'jeanne.martin@exemple.fr', site: 'www.exemple.fr',
-};
-const sampleValues = (t) => Object.fromEntries(t.fields.map((f) => [f.name, String(SAMPLE[f.name] ?? f.label).slice(0, f.maxChars)]));
-
 const drafts = new Map(); // brouillons d'import, en mémoire + tmp, 30 min
 function dropDraft(id) {
   const d = drafts.get(id);
@@ -101,6 +96,16 @@ export function adminRouter() {
       };
     });
     res.json({ clients, figmaConfigured: !!config.figmaToken, me: req.user });
+  }));
+
+  r.get('/templates/:client/:id/preview/:page.png', wrap(async (req, res) => {
+    const slug = needClient(req.params.client);
+    const t = getClient(slug).templates.get(req.params.id);
+    if (!t) return res.status(404).end();
+    const out = await previewFor(t, sampleValues(t), `tpl:${slug}`);
+    const f = out.files[Number(req.params.page) - 1];
+    if (!f) return res.status(404).end();
+    res.type('png').sendFile(path.join(out.dir, f));
   }));
 
   r.post('/clients', wrap((req, res) => {

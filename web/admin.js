@@ -60,6 +60,8 @@ function renderClient(c) {
   for (const t of c.templates) {
     const li = el('li', {}, el('b', { textContent: t.name }), ` — ${t.id} · ${t.fields} champ(s) · ${t.pages} page(s) `,
       t.builtin ? el('span', { className: 'badge', textContent: 'intégré' }) : '', t.hidden ? el('span', { className: 'badge warn', textContent: 'masqué' }) : '');
+    li.append(el('div', { className: 'thumbs' }, ...Array.from({ length: t.pages }, (_, i) => el('img', {
+      src: `/api/admin/templates/${c.slug}/${t.id}/preview/${i + 1}.png`, alt: `Aperçu de ${t.name}, page ${i + 1}`, loading: 'lazy' }))));
     li.append(btn(t.hidden ? 'Afficher' : 'Masquer', () => run(async () => { await api(`/templates/${c.slug}/${t.id}/visibility`, json('POST', { hidden: !t.hidden })); await refresh(); }),
       { title: t.hidden ? 'Proposer ce modèle au client' : 'Ne plus proposer ce modèle pour de nouvelles cartes (les cartes existantes restent)' }));
     const others = state.clients.filter((o) => o.slug !== c.slug);

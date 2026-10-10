@@ -12,6 +12,7 @@ import { renderCard } from './render.js';
 import { resolveProfile } from './profiles.js';
 import { userError } from './logo.js';
 import { adminRouter } from './admin.js';
+import { previewFor, previewFile, sampleValues } from './previews.js';
 import { listCards, getCard, createCard, updateCard, deleteCard, cleanValues, cardLabel } from './cards.js';
 import { isAdmin, clientOf, checkLogin, makeSession, setCookie, sessionMaxAge, requireAuth, currentUser, loginLimiter } from './auth.js';
 
@@ -70,7 +71,7 @@ app.use('/api/admin', adminRouter());
 app.get('/api/templates', requireAuth, (req, res) => {
   res.json([...(getClient(req.client)?.templates.values() ?? [])].filter((t) => !t.hidden).map((t) => ({
     id: t.id, name: t.name, trim: t.trim, bleed: t.bleed, safe: SAFE_MM,
-    fields: t.fields, hasLogo: t.pages.some((p) => p.elements.some((e) => e.type === 'image')),
+    pages: t.pages.length, fields: t.fields, hasLogo: t.pages.some((p) => p.elements.some((e) => e.type === 'image')),
     testProfile: (() => { try { return resolveProfile(t.profile).isTest; } catch { return null; } })(),
   })));
 });
@@ -78,6 +79,41 @@ app.get('/api/templates/:id/exemple.csv', requireAuth, (req, res) => {
   const t = getTemplate(req.client, req.params.id);
   if (!t || t.hidden) return res.status(404).json({ error: 'Modèle introuvable.' });
   res.type('text/csv; charset=utf-8').attachment(`exemple-${t.id}.csv`).send(sampleCsv(t));
+});
+
+// Aperçu d'un modèle (valeurs d'exemple), d'une carte enregistrée, ou de valeurs saisies (à la volée).
+const sendPreview = async (res, tpl, values, scope, page) => {
+  const out = await previewFor(tpl, values, scope);
+  const f = out.files[Number(page) - 1];
+  if (!f) return res.status(404).end();
+  res.type('png').sendFile(path.join(out.dir, f));
+};
+app.get('/api/templates/:id/preview/:page.png', requireAuth, async (req, res) => {
+  try {
+    const t = getTemplate(req.client, req.params.id);
+    if (!t || t.hidden) return res.status(404).end();
+    await sendPreview(res, t, sampleValues(t), `tpl:${req.client}`, req.params.page);
+  } catch (e) { console.error('[preview]', e.message); res.status(500).end(); }
+});
+app.get('/api/cards/:id/preview/:page.png', requireAuth, async (req, res) => {
+  try {
+    const card = getCard(req.client, req.params.id);
+    const t = card && getTemplate(req.client, card.templateId);
+    if (!t) return res.status(404).end();
+    await sendPreview(res, t, card.values, `card:${req.client}`, req.params.page);
+  } catch (e) { console.error('[preview]', e.message); res.status(e.user ? 422 : 500).end(); }
+});
+app.post('/api/preview', requireAuth, async (req, res) => {
+  try {
+    const t = getTemplate(req.client, req.body?.templateId);
+    if (!t || t.hidden) throw userError('Modèle introuvable.');
+    const out = await previewFor(t, cleanValues(t, req.body?.values), `live:${req.client}`);
+    res.json({ key: out.key, pages: out.files.length });
+  } catch (e) { fail(res, e, 'preview'); }
+});
+app.get('/api/preview/:key/:page.png', requireAuth, (req, res) => {
+  const f = previewFile(req.params.key, req.params.page);
+  f ? res.type('png').sendFile(f) : res.status(404).end();
 });
 
 // --- Génération

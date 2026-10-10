@@ -4,6 +4,9 @@ const RESERVED = ['api', 'admin', 'fonts', 'static', 'assets'];
 const m = location.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,39})$/);
 const pageClient = m && !RESERVED.includes(m[1]) ? m[1] : null; // adresse d'un client : cards.units.design/<client>
 
+const asQuery = (sep = '?') => (pageClient ? `${sep}as=${pageClient}` : '');
+const imgs = (urls, alt) => urls.map((src, i) => Object.assign(document.createElement('img'), { src, alt: `${alt}, page ${i + 1}`, loading: 'lazy' }));
+
 async function api(path, opts) {
   // Administrateur sur la page d'un client : l'application utilise les modèles et cartes de ce client.
   const r = await fetch(path, pageClient ? { ...opts, headers: { ...opts?.headers, 'x-client': pageClient } } : opts);
@@ -37,6 +40,10 @@ function onTemplate() {
   $('#columns').textContent = t.fields.map((f) => f.label + (f.optional ? ' (facultatif)' : '')).join(', ');
   $('#sample').href = `/api/templates/${t.id}/exemple.csv`;
   buildManual(t);
+  const pv = $('#tplPreview');
+  pv.replaceChildren(...imgs(Array.from({ length: t.pages }, (_, i) => `/api/templates/${t.id}/preview/${i + 1}.png${asQuery()}`), `Aperçu du modèle ${t.name}`));
+  $('#tplPreviewHint').hidden = false;
+  $('#livePreview').replaceChildren();
 }
 const mode = () => document.querySelector('[name=mode]:checked').value;
 function buildManual(t) {
@@ -51,9 +58,20 @@ function onMode() {
   const manual = mode() === 'manual';
   $('#modeCsv').hidden = manual; $('#modeManual').hidden = !manual;
   $('#csv').required = !manual;
+  $('#modeManualExtra').hidden = !manual;
   for (const i of $('#modeManual').querySelectorAll('input')) i.disabled = !manual;
 }
 for (const r of document.querySelectorAll('[name=mode]')) r.addEventListener('change', onMode);
+$('#livePreviewBtn').addEventListener('click', async () => {
+  $('#liveError').textContent = '';
+  const values = Object.fromEntries([...$('#modeManual').querySelectorAll('input')].map((i) => [i.name, i.value]));
+  const btn = $('#livePreviewBtn'); btn.disabled = true; btn.textContent = 'Aperçu en cours…';
+  try {
+    const d = await api('/api/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ templateId: $('#template').value, values }) });
+    $('#livePreview').replaceChildren(...imgs(Array.from({ length: d.pages }, (_, i) => `/api/preview/${d.key}/${i + 1}.png`), 'Aperçu de votre carte'));
+  } catch (err) { $('#liveError').textContent = err.message; $('#livePreview').replaceChildren(); }
+  finally { btn.disabled = false; btn.textContent = 'Aperçu avec mes valeurs'; }
+});
 const csvCell = (v) => `"${String(v).replace(/"/g, '""')}"`;
 function manualCsv() {
   const t = templates.find((x) => x.id === $('#template').value);
@@ -156,8 +174,9 @@ async function loadCards() {
     cb.addEventListener('change', syncSelection);
     const when = new Date(c.updatedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
     const btn = (text, fn, disabled = false) => { const b = h('button', { textContent: text, disabled }); b.addEventListener('click', fn); return b; };
+    const thumb = c.available ? h('img', { className: 'thumb', src: `/api/cards/${c.id}/preview/1.png?v=${Date.parse(c.updatedAt)}${asQuery('&')}`, alt: `Aperçu de la carte ${c.label}`, loading: 'lazy' }) : '';
     return h('li', {},
-      cb,
+      cb, thumb,
       h('span', { className: 'cinfo' }, h('b', { textContent: c.label }), ` — ${c.templateName}${c.available ? '' : ' (modèle indisponible)'} · ${when}`),
       btn('Aperçu / PDF', () => renderCards([c.id]), !c.available),
       btn('Modifier', () => openEdit(c), !c.available),

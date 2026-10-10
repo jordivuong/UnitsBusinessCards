@@ -43,6 +43,8 @@
       <form id="jobForm" class="panel">
         <h2>1. Vos informations</h2>
         <label>Modèle <select id="template" name="templateId"></select></label>
+        <div id="tplPreview" class="tplPreview" aria-label="Aperçu du modèle"></div>
+        <p class="hint" id="tplPreviewHint" hidden>Aperçu du modèle avec des valeurs d'exemple.</p>
         <fieldset class="modes">
           <legend>Comment saisir vos informations ?</legend>
           <label><input type="radio" name="mode" value="csv" checked> Importer un fichier CSV</label>
@@ -54,6 +56,11 @@
           <label>Fichier CSV <input type="file" id="csv" name="csv" accept=".csv,text/csv" required></label>
         </div>
         <div id="modeManual" hidden></div>
+        <div id="modeManualExtra" hidden>
+          <button type="button" id="livePreviewBtn">Aperçu avec mes valeurs</button>
+          <p class="error" id="liveError" role="alert"></p>
+          <div id="livePreview" class="tplPreview" aria-live="polite"></div>
+        </div>
         <label class="check"><input type="checkbox" id="marks"> Inclure les traits de coupe (PDF plus grand, 103 × 73 mm)</label>
         <p class="error" id="jobError" role="alert"></p>
         <button class="primary" id="go">Générer les cartes</button>

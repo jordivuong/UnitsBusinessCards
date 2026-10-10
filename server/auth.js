@@ -84,7 +84,7 @@ export function requireAuth(req, res, next) {
   req.user = email;
   req.client = clientOf(email);
   // Un administrateur peut consulter l'application « en tant que » un client (page /<client>).
-  const as = req.headers['x-client'];
+  const as = req.headers['x-client'] || req.query.as;
   if (as && isAdmin(email) && getClient(String(as))) req.client = String(as);
   if (!req.client) return res.status(403).json({ error: 'Compte non rattaché à un client : contactez l\'administrateur.' });
   next();
