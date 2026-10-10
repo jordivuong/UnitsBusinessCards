@@ -49,3 +49,23 @@ test('CSV : colonne manquante et fichier binaire', () => {
   assert.match(readCsv(Buffer.from('Nom\nA\n'), t, 10).errors[0], /manquante/);
   assert.match(readCsv(Buffer.from([0x89, 0x50, 0, 1, 2]), t, 10).errors[0], /pas un CSV/);
 });
+
+// Forme vectorielle (logo) : anneau en règle pair-impair, couleur de la palette, dans le PDF final.
+const withLogo = () => {
+  const c = structuredClone(t);
+  c.pages[0].elements.push({ type: 'path', x: 55, y: 8, fill: Object.keys(c.palette)[0], rule: 'evenodd', d: 'M 0 5 A 5 5 0 1 0 10 5 A 5 5 0 1 0 0 5 Z M 2 5 A 3 3 0 1 1 8 5 A 3 3 0 1 1 2 5 Z' });
+  return c;
+};
+
+test('forme vectorielle : tracée en CMJN dans le PDF vectoriel (étape A)', async () => {
+  const { buildPdf } = await import('../server/pdf.js');
+  const dir = tmp(), out = path.join(dir, 'a.pdf');
+  await buildPdf(withLogo(), base, { withMarks: false, logo: null, outFile: out });
+  assert.ok(fs.statSync(out).size > 1000);
+});
+
+test('forme vectorielle : PDF/X-3 valide, couleurs de la palette', { skip: !hasGs }, async () => {
+  const dir = tmp();
+  const r = await renderCard(withLogo(), base, { dir, withMarks: false, logo: null, name: 'logo' });
+  assert.ok(fs.existsSync(path.join(dir, r.pdf)));
+});

@@ -51,6 +51,11 @@ export async function buildPdf(template, values, { withMarks, logo, outFile }) {
         } else if (el.type === 'line') {
           const [x1, y1] = toPt(el.x1, el.y1), [x2, y2] = toPt(el.x2, el.y2);
           doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(el.width).strokeColor(color(el.stroke)).stroke();
+        } else if (el.type === 'path') {
+          const [x, y] = toPt(el.x, el.y);
+          doc.save().translate(x, y).scale(mm(1)); // les coordonnées du chemin sont en mm (1 px Figma = 1 mm)
+          doc.path(el.d).fill(color(el.fill), el.rule === 'evenodd' ? 'even-odd' : 'non-zero');
+          doc.restore();
         } else if (el.type === 'text') {
           drawText(doc, template, el, values, toPt, color, warnings);
         } else if (el.type === 'image' && logo) {

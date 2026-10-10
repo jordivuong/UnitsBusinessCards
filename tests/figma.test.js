@@ -67,7 +67,7 @@ test('refus : opacité, effets, vecteur, largeur auto, couleur inconnue', () => 
   const page = (r) => r.children[1];
   assert.match(errorsOf((r) => { page(r).children[1].opacity = 0.5; }), /opacité/);
   assert.match(errorsOf((r) => { page(r).children[1].effects = [{ type: 'DROP_SHADOW' }]; }), /effets/);
-  assert.match(errorsOf((r) => { page(r).children.push({ type: 'VECTOR', name: 'forme', ...box(OX, OY, 1, 1) }); }), /non géré/);
+  assert.match(errorsOf((r) => { page(r).children.push({ type: 'GROUP_INCONNU', name: 'forme', ...box(OX, OY, 1, 1) }); }), /non géré/);
   assert.match(errorsOf((r) => { page(r).children[2].textAutoResize = 'WIDTH_AND_HEIGHT'; }), /largeur automatique/);
   assert.match(errorsOf((r) => { page(r).children[1].fills = solid(10, 200, 10); }), /couleur non déterminée/);
   assert.match(errorsOf((r) => { page(r).children[2].name = 'champ:nom fill=inconnue'; }), /absente de la palette/);
@@ -91,4 +91,35 @@ test('police : nom PostScript déduit de la famille et du style quand l\'API ren
 test('avertissement : couleur Figma éloignée de la pastille déclarée', () => {
   const r = fixture((x) => { x.children[1].children[1].name = 'filet fill=encre'; });
   assert.match(figmaToTemplate(r, { id: 'demo', name: 'D' }).warnings.join(), /diffère/);
+});
+
+const logoNode = (extra) => ({
+  type: 'VECTOR', name: 'logo fill=encre', fills: solid(35, 31, 32), ...box(OX + 11, OY + 10, 12, 10),
+  fillGeometry: [{ path: 'M 0.123456 0 L 12 0 L 12 10.5 Z M 2 2 L 4 2 L 4 4 Z', windingRule: 'EVENODD' }], ...extra,
+});
+
+test('formes vectorielles : logo, ellipse, rectangle arrondi, contour', () => {
+  const page = (r) => r.children[1];
+  const els = (mutate) => figmaToTemplate(fixture(mutate), { id: 'demo', name: 'D' });
+  let out = els((r) => { page(r).children.push(logoNode()); });
+  assert.deepEqual(out.errors, []);
+  const path = out.template.pages[0].elements.find((e) => e.type === 'path');
+  assert.deepEqual([path.x, path.y, path.fill, path.rule], [8, 7, 'encre', 'evenodd']);
+  assert.match(path.d, /^M 0\.123 0 L 12 0/); // arrondi à 0,001 mm
+  // rectangle arrondi + contour : chemins, pas de rect
+  out = els((r) => { page(r).children.push({ type: 'RECTANGLE', name: 'bouton fill=accent', cornerRadius: 2, fills: solid(45, 160, 225), fillGeometry: [{ path: 'M 0 2 L 2 0 Z', windingRule: 'NONZERO' }], ...box(OX + 5, OY + 5, 10, 5) }); });
+  assert.deepEqual(out.errors, []);
+  assert.equal(out.template.pages[0].elements.filter((e) => e.type === 'path').length, 1);
+  out = els((r) => { page(r).children.push(logoNode({ strokes: solid(45, 160, 225), strokeGeometry: [{ path: 'M 0 0 L 1 1 Z', windingRule: 'NONZERO' }], name: 'logo fill=encre stroke=accent' })); });
+  assert.deepEqual(out.errors, []);
+  assert.deepEqual(out.template.pages[0].elements.filter((e) => e.type === 'path').map((e) => e.fill), ['encre', 'accent']);
+});
+
+test('formes vectorielles : refus clairs', () => {
+  const page = (r) => r.children[1];
+  assert.match(errorsOf((r) => { page(r).children.push(logoNode({ fillGeometry: undefined })); }), /géométrie de remplissage absente/);
+  assert.match(errorsOf((r) => { page(r).children.push(logoNode({ rotation: 0.5 })); }), /rotation/);
+  assert.match(errorsOf((r) => { page(r).children.push(logoNode({ fills: [{ type: 'GRADIENT_LINEAR' }] })); }), /dégradé ou image/);
+  assert.match(errorsOf((r) => { page(r).children.push(logoNode({ isMask: true })); }), /masque/);
+  assert.match(errorsOf((r) => { page(r).children.push(logoNode({ fills: solid(10, 200, 10), name: 'logo' })); }), /couleur non déterminée/);
 });

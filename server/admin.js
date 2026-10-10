@@ -46,7 +46,7 @@ async function fetchFigmaNode({ file, node }) {
   if (!config.figmaToken) throw userErr("Le jeton Figma n'est pas configuré sur le serveur (FIGMA_TOKEN).", 503);
   let r;
   try {
-    r = await fetch(`https://api.figma.com/v1/files/${file}/nodes?ids=${encodeURIComponent(node)}`, {
+    r = await fetch(`https://api.figma.com/v1/files/${file}/nodes?ids=${encodeURIComponent(node)}&geometry=paths`, {
       headers: { 'X-Figma-Token': config.figmaToken }, signal: AbortSignal.timeout(30_000),
     });
   } catch { throw userErr('Figma est injoignable (délai dépassé).', 502); }

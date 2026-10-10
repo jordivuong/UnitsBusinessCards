@@ -32,6 +32,11 @@ export function validateTemplate(t, fontDirs = [config.fontsDir]) {
       for (const k of FORBIDDEN_KEYS) if (k in el) fail(id, `propriété interdite : ${k}`);
       if (el.fill && !t.palette[el.fill]) fail(id, `couleur inconnue : ${el.fill}`);
       if (el.stroke && !t.palette[el.stroke]) fail(id, `couleur inconnue : ${el.stroke}`);
+      if (el.type === 'path') {
+        if (typeof el.d !== 'string' || !/^\s*[Mm]/.test(el.d) || el.d.length > 400_000 || !/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\-\s]+$/.test(el.d)) fail(id, 'chemin vectoriel invalide');
+        if (!t.palette[el.fill]) fail(id, `couleur inconnue : ${el.fill}`);
+        if (!['evenodd', 'nonzero'].includes(el.rule)) fail(id, 'règle de remplissage invalide');
+      }
       if (el.type === 'line' && !(el.width >= 0.25)) fail(id, 'filet de moins de 0,25 pt');
       if (el.type === 'text') {
         if (!fontPath(el.font, { fontDirs })) fail(id, `police introuvable : ${el.font}.otf (à placer dans le dossier fonts/ du client)`);

@@ -53,6 +53,30 @@ function colorOf(n, tag, ctx, label) {
   return null;
 }
 
+const SHAPES = ['VECTOR', 'BOOLEAN_OPERATION', 'ELLIPSE', 'STAR', 'REGULAR_POLYGON'];
+const cleanPath = (d) => String(d).replace(/-?\d*\.\d+/g, (v) => String(Math.round(Number(v) * 1000) / 1000));
+
+/**
+ * Forme vectorielle (logo, ellipse, rectangle arrondi ou à contour…) → éléments `path` en aplat de la palette.
+ * Utilise fillGeometry / strokeGeometry de l'API (requête avec geometry=paths) ; les contours deviennent des surfaces pleines.
+ */
+function shapeToPaths(n, { x, y, label, ctx, errors, elements }) {
+  if (n.isMask) { errors.push(`${label} : masque non géré.`); return; }
+  if (Math.abs(n.rotation || 0) > 1e-6) { errors.push(`${label} : rotation non gérée (aplatissez la forme : Object → Flatten, ou Ctrl/Cmd+E).`); return; }
+  if ((n.strokeDashes || []).length) { errors.push(`${label} : contour pointillé non géré.`); return; }
+  const fills = (n.fills || []).filter((f) => f.visible !== false);
+  const stroked = (n.strokes || []).some((s) => s.visible !== false);
+  if (!fills.length && !stroked) { errors.push(`${label} : forme sans remplissage ni contour.`); return; }
+  if (fills.some((f) => f.type !== 'SOLID')) { errors.push(`${label} : remplissage non plein (dégradé ou image) non géré : utilisez une couleur pleine.`); return; }
+  if (fills.length > 1) { errors.push(`${label} : plusieurs remplissages superposés non gérés (aplatissez ou gardez un seul).`); return; }
+  const add = (geometry, color, what) => {
+    if (!geometry?.length) { errors.push(`${label} : géométrie ${what} absente (réimportez le modèle depuis Figma).`); return; }
+    if (color) for (const g of geometry) elements.push({ type: 'path', x, y, fill: color, rule: g.windingRule === 'EVENODD' ? 'evenodd' : 'nonzero', d: cleanPath(g.path) });
+  };
+  if (fills.length) add(n.fillGeometry, colorOf(n, 'fill', ctx, label), 'de remplissage');
+  if (stroked) add(n.strokeGeometry, colorOf(n, 'stroke', ctx, label), 'de contour');
+}
+
 /** Convertit un cadre de page (recto/verso) en liste d'éléments. */
 function convertPage(frame, bleed, pal, errors, warnings) {
   const ox = frame.absoluteBoundingBox.x + bleed, oy = frame.absoluteBoundingBox.y + bleed;
@@ -74,6 +98,14 @@ function convertPage(frame, bleed, pal, errors, warnings) {
       if (n.blendMode && !['NORMAL', 'PASS_THROUGH'].includes(n.blendMode)) errors.push(`${label} : mode de fusion interdit.`);
 
       if (['GROUP', 'FRAME', 'SECTION', 'COMPONENT', 'INSTANCE'].includes(n.type)) { walk(n.children); continue; }
+
+      // Formes vectorielles : logo importé en SVG, ellipse, étoile, rectangle arrondi ou à contour…
+      const rounded = n.type === 'RECTANGLE' && (n.cornerRadius > 0 || (n.rectangleCornerRadii || []).some((r) => r > 0));
+      const outlined = n.type === 'RECTANGLE' && (n.strokes || []).some((st) => st.visible !== false);
+      if (SHAPES.includes(n.type) || (n.type === 'RECTANGLE' && kind !== 'logo' && (rounded || outlined))) {
+        shapeToPaths(n, { x, y, label, ctx, errors, elements });
+        continue;
+      }
 
       if (n.type === 'RECTANGLE' && kind === 'logo') {
         const bg = tags.bg;
@@ -122,7 +154,7 @@ function convertPage(frame, bleed, pal, errors, warnings) {
         // Ordre des clés lisible dans le JSON
         elements.push(Object.fromEntries(['type', 'field', 'label', 'text', 'font', 'size', 'minSize', 'x', 'y', 'maxW', 'align', 'letterSpacing', 'fill', 'maxChars', 'optional'].filter((k) => k in el).map((k) => [k, el[k]])));
       } else {
-        errors.push(`${label} : élément ${n.type} non géré (vectorisez en rectangle plein, ou retirez-le ; pas d'image ni de dégradé dans le modèle).`);
+        errors.push(`${label} : élément ${n.type} non géré (éléments gérés : rectangles, formes vectorielles, filets, textes ; pas de dégradé).`);
       }
     }
   };
