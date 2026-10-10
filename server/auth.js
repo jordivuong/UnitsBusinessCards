@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, sessionSecret } from './config.js';
+import { getClient } from './template.js';
 
 const usersFile = () => path.join(config.dataDir, 'users.json');
 const SESSION_MS = 12 * 3600 * 1000;
@@ -33,6 +34,14 @@ export function addUser(email, password, client) {
   save(users);
 }
 
+export const listUsers = () => Object.entries(load()).map(([email, u]) => ({ email, client: u.client }));
+export function deleteUser(email) {
+  const users = load();
+  if (!users[normEmail(email)]) return false;
+  delete users[normEmail(email)];
+  save(users);
+  return true;
+}
 export const clientOf = (email) => load()[normEmail(email)]?.client;
 
 export function checkLogin(email, password) {
@@ -74,6 +83,9 @@ export function requireAuth(req, res, next) {
   if (!email) return res.status(401).json({ error: 'Veuillez vous connecter.' });
   req.user = email;
   req.client = clientOf(email);
+  // Un administrateur peut consulter l'application « en tant que » un client (page /<client>).
+  const as = req.headers['x-client'];
+  if (as && isAdmin(email) && getClient(String(as))) req.client = String(as);
   if (!req.client) return res.status(403).json({ error: 'Compte non rattaché à un client : contactez l\'administrateur.' });
   next();
 }

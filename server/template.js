@@ -70,6 +70,22 @@ export const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 /** Identifiants interdits pour un client : ils sont des chemins du site (cards.units.design/<client>). */
 export const RESERVED_SLUGS = new Set(['api', 'admin', 'fonts', 'static', 'assets']);
 
+const settingsFile = (slug) => path.join(config.adminDir, slug, 'settings.json');
+/** Réglages d'un client gérés depuis l'Admin : { hidden: [id de modèles non proposés pour de nouvelles cartes] }. */
+export function readSettings(slug) {
+  try {
+    const s = JSON.parse(fs.readFileSync(settingsFile(slug), 'utf8'));
+    return { hidden: Array.isArray(s.hidden) ? s.hidden.filter((x) => typeof x === 'string') : [] };
+  } catch { return { hidden: [] }; }
+}
+export function writeSettings(slug, settings) {
+  fs.mkdirSync(path.dirname(settingsFile(slug)), { recursive: true });
+  fs.writeFileSync(settingsFile(slug) + '.tmp', JSON.stringify(settings, null, 2) + '\n');
+  fs.renameSync(settingsFile(slug) + '.tmp', settingsFile(slug));
+}
+/** Client défini dans le dépôt (clients/) : non supprimable depuis l'Admin. */
+export const isBuiltinClient = (slug) => SLUG.test(slug || '') && fs.existsSync(path.join(config.clientsDir, slug));
+
 let cache;
 export const resetClients = () => { cache = undefined; };
 export const clientFontDirs = (slug) => [path.join(config.adminDir, slug, 'fonts'), path.join(config.clientsDir, slug, 'fonts'), config.fontsDir];
@@ -90,6 +106,7 @@ export function loadClients() {
     let name = slug;
     const templates = new Map();
     const fontDirs = clientFontDirs(slug);
+    const hidden = new Set(readSettings(slug).hidden);
     for (const root of roots) {
       const dir = path.join(root, slug);
       if (!fs.existsSync(dir)) continue;
@@ -102,6 +119,7 @@ export function loadClients() {
           t.fontDirs = fontDirs;
           t.client = slug;
           t.builtin = root === config.clientsDir;
+          t.hidden = hidden.has(t.id);
           templates.set(t.id, t);
         } catch (e) {
           if (root === config.clientsDir) throw e;

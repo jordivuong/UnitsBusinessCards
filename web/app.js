@@ -5,7 +5,8 @@ const m = location.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,39})$/);
 const pageClient = m && !RESERVED.includes(m[1]) ? m[1] : null; // adresse d'un client : cards.units.design/<client>
 
 async function api(path, opts) {
-  const r = await fetch(path, opts);
+  // Administrateur sur la page d'un client : l'application utilise les modèles et cartes de ce client.
+  const r = await fetch(path, pageClient ? { ...opts, headers: { ...opts?.headers, 'x-client': pageClient } } : opts);
   if (r.status === 401 && path !== '/api/login') { showLogin(); throw new Error('Veuillez vous connecter.'); }
   const body = r.headers.get('content-type')?.includes('json') ? await r.json() : null;
   if (!r.ok) throw new Error(body?.error || 'Erreur inattendue.');
@@ -26,6 +27,8 @@ async function showApp(email, admin = false, clientSlug = null) {
   sel.replaceChildren(...templates.map((t) => Object.assign(document.createElement('option'), { value: t.id, textContent: `${t.name} (${t.trim.w} × ${t.trim.h} mm)` })));
   try { const last = localStorage.getItem('ubc.template'); if (templates.some((t) => t.id === last)) sel.value = last; } catch { /* stockage indisponible */ }
   onTemplate();
+  $('#jobError').textContent = templates.length ? '' : "Aucun modèle n'est disponible pour ce compte.";
+  $('#go').disabled = !templates.length;
   await loadCards();
 }
 function onTemplate() {

@@ -5,10 +5,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config } from './config.js';
-import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs } from './template.js';
+import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, readSettings, writeSettings, isBuiltinClient } from './template.js';
 import { figmaToTemplate } from './figma.js';
 import { renderCard } from './render.js';
-import { addUser, requireAdmin } from './auth.js';
+import { addUser, requireAdmin, listUsers, deleteUser, isAdmin, clientOf } from './auth.js';
 
 const ID = /^[a-z0-9-]{1,40}$/;
 const FONT_FILE = /^[A-Za-z0-9-]{1,80}\.otf$/;
@@ -89,16 +89,18 @@ export function adminRouter() {
   };
 
   r.get('/state', wrap((req, res) => {
+    const users = listUsers();
     const clients = [...loadClients().values()].map((c) => {
       const fonts = new Set();
       for (const d of clientFontDirs(c.slug).slice(0, 2))
         if (fs.existsSync(d)) for (const f of fs.readdirSync(d)) if (FONT_FILE.test(f)) fonts.add(f.replace(/\.otf$/, ''));
       return {
-        slug: c.slug, name: c.name, fonts: [...fonts].sort(),
-        templates: [...c.templates.values()].map((t) => ({ id: t.id, name: t.name, builtin: !!t.builtin, fields: t.fields.length })),
+        slug: c.slug, name: c.name, builtin: isBuiltinClient(c.slug), fonts: [...fonts].sort(),
+        templates: [...c.templates.values()].map((t) => ({ id: t.id, name: t.name, builtin: !!t.builtin, hidden: !!t.hidden, fields: t.fields.length, pages: t.pages.length })),
+        users: users.filter((u) => u.client === c.slug).map((u) => ({ email: u.email, admin: isAdmin(u.email) })).sort((a, b) => a.email.localeCompare(b.email)),
       };
     });
-    res.json({ clients, figmaConfigured: !!config.figmaToken });
+    res.json({ clients, figmaConfigured: !!config.figmaToken, me: req.user });
   }));
 
   r.post('/clients', wrap((req, res) => {
@@ -111,6 +113,30 @@ export function adminRouter() {
     fs.writeFileSync(path.join(dir, 'client.json'), JSON.stringify({ name: String(name).trim().slice(0, 80) }, null, 2) + '\n');
     resetClients();
     res.json({ ok: true });
+  }));
+
+  r.patch('/clients/:slug', wrap((req, res) => {
+    const slug = needClient(req.params.slug);
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    if (!name) throw userErr('Nom requis.');
+    fs.mkdirSync(clientDir(slug), { recursive: true });
+    fs.writeFileSync(path.join(clientDir(slug), 'client.json'), JSON.stringify({ name }, null, 2) + '\n');
+    resetClients();
+    res.json({ ok: true });
+  }));
+
+  // Suppression d'un client créé depuis l'Admin : sa page, ses modèles, polices, comptes et cartes enregistrées.
+  r.delete('/clients/:slug', wrap((req, res) => {
+    const slug = needClient(req.params.slug);
+    if (isBuiltinClient(slug)) throw userErr('Client défini dans le dépôt : il ne se supprime pas depuis cette page.');
+    if (req.body?.confirm !== slug) throw userErr('Confirmation manquante : tapez l\'identifiant du client.');
+    const accounts = listUsers().filter((u) => u.client === slug);
+    if (accounts.some((u) => isAdmin(u.email))) throw userErr('Un compte administrateur est rattaché à ce client : impossible de le supprimer.');
+    for (const u of accounts) deleteUser(u.email);
+    fs.rmSync(clientDir(slug), { recursive: true, force: true });
+    fs.rmSync(path.join(config.dataDir, 'cards', slug), { recursive: true, force: true });
+    resetClients();
+    res.json({ ok: true, usersRemoved: accounts.length });
   }));
 
   r.post('/fonts', fontUpload.array('fonts', 12), wrap((req, res) => {
@@ -196,6 +222,42 @@ export function adminRouter() {
     if (t.builtin) throw userErr('Modèle intégré au dépôt : il ne se retire pas depuis cette page.');
     fs.rmSync(path.join(clientDir(slug), 'templates', `${req.params.id}.json`), { force: true });
     resetClients();
+    res.json({ ok: true });
+  }));
+
+  r.post('/templates/:client/:id/visibility', wrap((req, res) => {
+    const slug = needClient(req.params.client);
+    if (!getClient(slug).templates.has(req.params.id)) throw userErr('Modèle introuvable.', 404);
+    const set = new Set(readSettings(slug).hidden);
+    req.body?.hidden ? set.add(req.params.id) : set.delete(req.params.id);
+    writeSettings(slug, { hidden: [...set] });
+    resetClients();
+    res.json({ ok: true });
+  }));
+
+  // Copie un modèle (intégré ou non) vers un autre client : même design, polices à fournir pour ce client.
+  r.post('/templates/copy', wrap((req, res) => {
+    const { from, id, to } = req.body || {};
+    const src = needClient(from), dst = needClient(to);
+    const newId = String(req.body?.newId || id);
+    if (!ID.test(newId)) throw userErr('Identifiant du modèle : a-z, 0-9 et tirets.');
+    const t = getClient(src).templates.get(id);
+    if (!t) throw userErr('Modèle introuvable.', 404);
+    if (getClient(dst).templates.has(newId)) throw userErr(`Le client « ${dst} » a déjà un modèle « ${newId} » : choisissez un autre identifiant.`);
+    const copy = { id: newId, name: t.name, profile: t.profile, trim: t.trim, bleed: t.bleed, palette: t.palette, pages: t.pages };
+    try { validateTemplate(structuredClone(copy), clientFontDirs(dst)); }
+    catch (e) { throw userErr(`${e.message} Ajoutez d'abord les polices au client « ${dst} ».`); }
+    fs.mkdirSync(path.join(clientDir(dst), 'templates'), { recursive: true });
+    fs.writeFileSync(path.join(clientDir(dst), 'templates', `${newId}.json`), JSON.stringify(copy, null, 2) + '\n');
+    resetClients();
+    res.json({ ok: true });
+  }));
+
+  r.delete('/users/:email', wrap((req, res) => {
+    const email = String(req.params.email).toLowerCase();
+    if (isAdmin(email)) throw userErr('Un compte administrateur ne se supprime pas depuis cette page.');
+    if (!clientOf(email)) throw userErr('Compte introuvable.', 404);
+    deleteUser(email);
     res.json({ ok: true });
   }));
 

@@ -68,7 +68,7 @@ app.use('/api/admin', adminRouter());
 
 // --- Modèles
 app.get('/api/templates', requireAuth, (req, res) => {
-  res.json([...(getClient(req.client)?.templates.values() ?? [])].map((t) => ({
+  res.json([...(getClient(req.client)?.templates.values() ?? [])].filter((t) => !t.hidden).map((t) => ({
     id: t.id, name: t.name, trim: t.trim, bleed: t.bleed, safe: SAFE_MM,
     fields: t.fields, hasLogo: t.pages.some((p) => p.elements.some((e) => e.type === 'image')),
     testProfile: (() => { try { return resolveProfile(t.profile).isTest; } catch { return null; } })(),
@@ -76,7 +76,7 @@ app.get('/api/templates', requireAuth, (req, res) => {
 });
 app.get('/api/templates/:id/exemple.csv', requireAuth, (req, res) => {
   const t = getTemplate(req.client, req.params.id);
-  if (!t) return res.status(404).json({ error: 'Modèle introuvable.' });
+  if (!t || t.hidden) return res.status(404).json({ error: 'Modèle introuvable.' });
   res.type('text/csv; charset=utf-8').attachment(`exemple-${t.id}.csv`).send(sampleCsv(t));
 });
 
@@ -122,7 +122,7 @@ const fail = (res, e, tag) => {
 app.post('/api/jobs', requireAuth, upload.fields([{ name: 'csv', maxCount: 1 }]), async (req, res) => {
   try {
     const template = getTemplate(req.client, req.body?.templateId);
-    if (!template) throw userError('Modèle introuvable.');
+    if (!template || template.hidden) throw userError('Modèle introuvable.');
     const csvFile = req.files?.csv?.[0];
     if (!csvFile) throw userError('Ajoutez un fichier CSV.');
     if (csvFile.size > 1024 * 1024) throw userError('Le CSV est trop volumineux (1 Mo maximum).');
@@ -208,6 +208,9 @@ app.get('/api/jobs/:id/archive.zip', requireAuth, (req, res) => {
 });
 
 app.use(express.static(path.join(ROOT, 'web'), { index: 'index.html', setHeaders: (r) => r.setHeader('Cache-Control', 'no-cache') }));
+
+// cards.units.design/admin : administration de tous les clients (l'accès est contrôlé par l'API).
+app.get('/admin', (req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.join(ROOT, 'web', 'admin.html')); });
 
 // cards.units.design/<client> : la même application, présentée pour ce client (la page lit l'adresse).
 app.get(/^\/([a-z0-9][a-z0-9-]{0,39})\/$/, (req, res) => res.redirect(301, `/${req.params[0]}`));
