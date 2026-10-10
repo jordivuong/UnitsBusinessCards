@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config } from './config.js';
-import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, readSettings, writeSettings, isBuiltinClient } from './template.js';
+import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, fontPath, readSettings, writeSettings, isBuiltinClient } from './template.js';
 import { figmaToTemplate } from './figma.js';
 import { renderCard } from './render.js';
 import { previewFor, sampleValues } from './previews.js';
@@ -176,6 +176,14 @@ export function adminRouter() {
     const { template, errors, warnings } = figmaToTemplate(root, { id, name: String(name || id).trim().slice(0, 80) });
     if (!template) return res.status(422).json({ error: 'Le design Figma ne respecte pas les conventions.', problems: errors, warnings });
     const fontDirs = clientFontDirs(slug);
+    // Toutes les polices manquantes d'un coup (plutôt qu'une erreur à la fois).
+    const missing = [...new Set(template.pages.flatMap((p) => p.elements).filter((e) => e.type === 'text').map((e) => e.font))].filter((f) => !fontPath(f, { fontDirs }));
+    if (missing.length) {
+      return res.status(422).json({
+        error: `Polices manquantes pour ce client : ${missing.map((f) => `${f}.otf`).join(', ')}. Ajoutez ces fichiers dans « Polices » de sa fiche (nommés d'après le nom PostScript), puis relancez l'import.`,
+        problems: missing.map((f) => `${f}.otf`), warnings,
+      });
+    }
     try { validateTemplate(structuredClone(template), fontDirs); } catch (e) { return res.status(422).json({ error: e.message, problems: [], warnings }); }
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-draft-'));

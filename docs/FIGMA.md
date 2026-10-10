@@ -57,15 +57,16 @@ Les options `min=` et `max=` des noms de calques restent en **pt** (corps) et en
 | Texte modifiable | `champ:nom label="Nom" min=8 max=40 opt` | champ du CSV |
 | Texte fixe | `texte` | texte non modifiable |
 | Rectangle | `logo bg=fond` | emplacement du logo (cadre), `bg` = couleur de la palette derrière le logo |
+| Forme vectorielle (logo SVG, union/soustraction, ellipse, étoile, polygone), rectangle arrondi ou à contour | `logo fill=encre` (nom libre) | surface pleine **vectorielle** dans la couleur de la palette ; le contour (`stroke=`) devient une surface |
 | Tout calque commençant par `_` ou `#` | `_note` | ignoré (notes du designer) |
 
 Options des champs : `label="…"` libellé (colonne du CSV), `min=` corps minimum en pt (par défaut 80 % du corps, jamais < 6), `max=` nombre maximal de caractères (60 par défaut), `opt` champ facultatif, `fill=` couleur. **Les noms de champ standard** (`nom`, `titre`, `telephone`, `email`, `site`) acceptent des synonymes dans le CSV ; tout autre nom est accepté tel quel (libellé ou nom).
 
 **Texte** : zone à **largeur fixe** (la largeur définit la largeur maximale ; le texte est réduit jusqu'au corps minimum puis refusé). Police : le nom PostScript doit correspondre à un fichier `fonts/<NomPostScript>.otf` du client (ou du dossier partagé `fonts/`). Alignement gauche, centré ou droite pris en compte.
 
-**Couleurs** : chaque calque prend sa couleur par l'option `fill=<nom de palette>` (ou `stroke=` pour un filet). Sans option, l'import choisit la pastille de palette de même teinte (à 8/255 près) et refuse en cas de doute.
+**Couleurs** : chaque calque prend sa couleur par l'option `fill=<nom de palette>` (ou `stroke=` pour un filet ou un contour). Sans option, l'import prend la pastille de même teinte (à 8/255 près) ; à défaut, la **plus proche**, avec un avertissement visible avant publication.
 
-**Interdit** (l'import refuse) : opacité < 100 %, ombres/flous, modes de fusion, dégradés, images dans le modèle, formes vectorielles libres, contours de rectangle, élément de plus de 2 pages. Les textes et le logo doivent rester à ≥ 3 mm du bord de coupe (zone de sécurité) ; les fonds et aplats vont jusqu'au bord des fonds perdus.
+**Interdit** (l'import refuse) : opacité < 100 %, ombres/flous, modes de fusion, dégradés, images (photos, logos bitmap), remplissages multiples sur une même forme, contours pointillés, masques, formes pivotées (aplatissez-les : Ctrl/Cmd+E), élément de plus de 2 pages. **Logos : importez-les en vectoriel (SVG)**, c'est le plus net à l'impression. Les textes et le logo doivent rester à ≥ 3 mm du bord de coupe (zone de sécurité) ; les fonds et aplats vont jusqu'au bord des fonds perdus.
 
 ## Commandes
 
@@ -103,7 +104,7 @@ docker compose exec cartes node server/cli.js add-user prenom@acme.fr 'mot-de-pa
 
 - Le fichier maître et le convertisseur ont été validés ensemble (le design du maître redonne le même PDF que le modèle `demo`), mais le convertisseur a tourné sur un export réel de l'API REST du fichier maître : le recto redonne le modèle `demo`. L'API renvoie `fontPostScriptName: null` ; le nom PostScript est alors déduit de la famille et du style (`Inter` + `Semi Bold` → `Inter-SemiBold`), ou imposé par `font=<NomPostScript>` dans le nom du calque pour les polices dont le nom ne suit pas cette règle.
 - Le rendu du texte est calculé par l'app (métriques de la police), pas par Figma : de petits écarts verticaux (< 0,5 mm) sont possibles avec un interlignage non automatique. **L'aperçu PNG de `template:check` fait foi**, pas Figma.
-- Un seul type d'image dans les modèles : l'emplacement du logo (fourni par le client à chaque envoi). Les illustrations/photos de fond ne sont pas gérées en v1.
+- Pas d'image bitmap dans les modèles (logo PNG/JPEG, photo) : les logos se placent en **vecteur** (SVG collé dans Figma). Les photos de fond ne sont pas gérées en v1.
 - Couleurs écran ≠ papier : validation finale sur BAT.
 
 ## Liste de vérification du designer
