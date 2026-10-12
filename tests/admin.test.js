@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFigmaUrl, findModelRoot } from '../server/admin.js';
+import fs from 'node:fs';
+import { parseFigmaUrl, findModelRoot, postscriptName } from '../server/admin.js';
 
 const KEY = 'AbCdEfGhIjKlMnOpQrStUv';
 
@@ -27,4 +28,10 @@ test('findModelRoot : retrouve la section depuis une page, refuse l\'ambiguïté
   assert.match(findModelRoot({ name: 'Page', children: [model('a'), model('b')] }).error, /plusieurs modèles/);
   const vide = { name: 'x', children: [] };
   assert.equal(findModelRoot(vide).node, vide);
+});
+
+test('postscriptName : lu dans la police, quel que soit le nom du fichier', () => {
+  assert.equal(postscriptName(fs.readFileSync(new URL('../fonts/Inter-SemiBold.otf', import.meta.url))), 'Inter-SemiBold');
+  assert.equal(postscriptName(Buffer.from('pas une police')), null);
+  assert.equal(postscriptName(Buffer.alloc(3)), null);
 });

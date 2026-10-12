@@ -15,6 +15,7 @@ const field = (label, input) => el('label', {}, label, input);
 
 let state = { clients: [] };
 const open = new Set();          // fiches ouvertes
+const fontMsg = {};              // dernier message d'ajout de polices par client
 const drafts = {};               // brouillon d'import par client { draft, template, previews, warnings, testProfile }
 
 async function refresh() {
@@ -85,15 +86,21 @@ function renderClient(c) {
   // Polices
   box.append(el('h3', { textContent: 'Polices' }));
   box.append(el('p', { className: 'hint', textContent: c.fonts.length ? c.fonts.join(', ') : 'Aucune police propre à ce client (les polices partagées, comme Inter, sont toujours disponibles).' }));
-  const files = el('input', { type: 'file', accept: '.otf', multiple: true });
-  box.append(el('div', { className: 'inline' }, field('Ajouter des polices (.otf, nom PostScript, ex. Inter-SemiBold.otf)', files),
-    btn('Ajouter', () => run(async () => {
-      if (!files.files.length) throw new Error('Choisissez au moins un fichier .otf.');
-      const fd = new FormData();
-      for (const f of files.files) fd.append('fonts', f);
-      await api(`/fonts?client=${encodeURIComponent(c.slug)}`, { method: 'POST', body: fd });
-      open.add(c.slug); await refresh();
-    }))));
+  const files = el('input', { type: 'file', accept: '.otf,.ttf', multiple: true });
+  const fontErr = el('p', { className: 'error', role: 'alert' }), fontOk = el('p', { className: 'hint', role: 'status' });
+  const add = btn('Ajouter', async () => {
+    fontErr.textContent = ''; fontOk.textContent = '';
+    if (!files.files.length) { fontErr.textContent = 'Choisissez d\'abord un ou plusieurs fichiers de police (.otf ou .ttf).'; return; }
+    const fd = new FormData();
+    for (const f of files.files) fd.append('fonts', f);
+    add.disabled = true; add.textContent = 'Envoi…';
+    try {
+      const r = await api(`/fonts?client=${encodeURIComponent(c.slug)}`, { method: 'POST', body: fd });
+      open.add(c.slug); fontMsg[c.slug] = `Ajoutée(s) : ${r.saved.join(', ')}`; await refresh();
+    } catch (e) { fontErr.textContent = e.message; add.disabled = false; add.textContent = 'Ajouter'; }
+  });
+  fontOk.textContent = fontMsg[c.slug] || ''; delete fontMsg[c.slug];
+  box.append(el('div', { className: 'inline' }, field('Ajouter des polices (.otf ou .ttf — le nom du fichier n\'a pas d\'importance)', files), add), fontErr, fontOk);
 
   // Comptes
   box.append(el('h3', { textContent: 'Comptes' }));

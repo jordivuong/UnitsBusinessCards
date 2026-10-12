@@ -40,6 +40,28 @@ export function findModelRoot(root) {
   return { node: root };
 }
 
+/** Nom PostScript d'une police OpenType/TrueType (table « name », identifiant 6), ou null. */
+export function postscriptName(buf) {
+  try {
+    if (buf.toString('latin1', 0, 4) === 'ttcf') return null; // collection : non gérée
+    const tables = buf.readUInt16BE(4);
+    for (let i = 0; i < tables; i++) {
+      const rec = 12 + i * 16;
+      if (buf.toString('latin1', rec, rec + 4) !== 'name') continue;
+      const off = buf.readUInt32BE(rec + 8), count = buf.readUInt16BE(off + 2), strings = off + buf.readUInt16BE(off + 4);
+      for (let j = 0; j < count; j++) {
+        const r = off + 6 + j * 12;
+        if (buf.readUInt16BE(r + 6) !== 6) continue;
+        const platform = buf.readUInt16BE(r), len = buf.readUInt16BE(r + 8), at = strings + buf.readUInt16BE(r + 10);
+        const raw = Buffer.from(buf.subarray(at, at + len));
+        const name = (platform === 3 || platform === 0 ? raw.swap16().toString('utf16le') : raw.toString('latin1')).trim();
+        if (/^[A-Za-z0-9-]{1,80}$/.test(name)) return name;
+      }
+    }
+  } catch { /* fichier tronqué ou invalide */ }
+  return null;
+}
+
 const userErr = (message, status = 422) => Object.assign(new Error(message), { status });
 
 async function fetchFigmaNode({ file, node }) {
@@ -151,11 +173,14 @@ export function adminRouter() {
     fs.mkdirSync(dir, { recursive: true });
     const saved = [];
     for (const f of req.files) {
-      if (!FONT_FILE.test(f.originalname)) throw userErr(`« ${f.originalname} » : nommez le fichier d'après le nom PostScript de la police (ex. Inter-SemiBold.otf).`);
       const magic = f.buffer.subarray(0, 4).toString('latin1');
-      if (magic !== 'OTTO' && magic !== '\0\x01\0\0') throw userErr(`« ${f.originalname} » n'est pas une police OpenType (.otf).`);
-      fs.writeFileSync(path.join(dir, f.originalname), f.buffer);
-      saved.push(f.originalname.replace(/\.otf$/, ''));
+      if (!/\.(otf|ttf)$/i.test(f.originalname) || (magic !== 'OTTO' && magic !== '\0\x01\0\0' && magic !== 'true'))
+        throw userErr(`« ${f.originalname} » n'est pas une police OpenType/TrueType (.otf ou .ttf).`);
+      // Le fichier est enregistré sous son nom PostScript (celui que Figma et le modèle utilisent), quel que soit son nom d'origine.
+      const ps = postscriptName(f.buffer) || (/^[A-Za-z0-9-]{1,80}$/.test(f.originalname.replace(/\.(otf|ttf)$/i, '')) ? f.originalname.replace(/\.(otf|ttf)$/i, '') : null);
+      if (!ps) throw userErr(`« ${f.originalname} » : nom PostScript introuvable dans la police. Renommez le fichier d'après ce nom (ex. Inter-SemiBold.otf).`);
+      fs.writeFileSync(path.join(dir, `${ps}.otf`), f.buffer);
+      saved.push(ps);
     }
     res.json({ saved });
   }));
