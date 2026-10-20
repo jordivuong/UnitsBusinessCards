@@ -73,6 +73,7 @@ function renderClient(c) {
         open.add(sel.value); await refresh();
       })));
     }
+    if (t.kind === 'digital') li.append(el('a', { className: 'button', href: `/api/admin/templates/${c.slug}/${t.id}/package.zip`, textContent: 'Package ZIP', title: 'Télécharger les fichiers HTML/CSS pour les retoucher à la main' }));
     if (!t.builtin) li.append(btn('Retirer', () => run(async () => {
       if (!confirm(`Retirer définitivement le modèle « ${t.name} » ? (pour le masquer sans le perdre, utilisez « Masquer »)`)) return;
       await api(`/templates/${c.slug}/${t.id}`, { method: 'DELETE' }); await refresh();
@@ -127,7 +128,7 @@ function renderClient(c) {
 }
 
 function importSection(c, run) {
-  const wrap = el('div', { className: 'importBox' }, el('h3', { textContent: 'Ajouter un modèle' }), el('p', { className: 'hint', textContent: 'Carte imprimée : depuis un design Figma. Bannière : depuis un package web (ZIP).' }), el('h4', { textContent: 'Carte imprimée — depuis Figma' }));
+  const wrap = el('div', { className: 'importBox' }, el('h3', { textContent: 'Ajouter un modèle' }), el('p', { className: 'hint', textContent: 'Carte imprimée : depuis Figma. Bannière : depuis Figma, ou depuis un package web (ZIP) écrit à la main.' }), el('h4', { textContent: 'Carte imprimée — depuis Figma' }));
   const url = el('input', { type: 'text', placeholder: 'https://www.figma.com/design/…?node-id=1-2' });
   const id = el('input', { type: 'text', placeholder: 'carte-v1', pattern: '[a-z0-9\\-]{1,40}' });
   const name = el('input', { type: 'text', placeholder: 'Carte ACME' });
@@ -146,6 +147,26 @@ function importSection(c, run) {
     } finally { go.disabled = false; busy.hidden = true; }
   }, { className: 'primary' });
   wrap.append(field('Lien Figma de la section (clic droit → Copy link to selection)', url), field('Identifiant du modèle', id), field('Nom du modèle', name), info, problems, go, busy);
+
+  // Bannière depuis Figma
+  const burl = el('input', { type: 'text', placeholder: 'https://www.figma.com/design/…?node-id=1-2' });
+  const bid = el('input', { type: 'text', placeholder: 'banniere-v1', pattern: '[a-z0-9\\-]{1,40}' });
+  const bname = el('input', { type: 'text', placeholder: 'Bannières ACME' });
+  const binfo = el('p', { className: 'error', role: 'alert' }), bproblems = el('ul', { className: 'problems' });
+  const bbusy = el('p', { className: 'hint', textContent: 'Export des calques par Figma et rendu des aperçus (jusqu\'à une minute)…', hidden: true });
+  const bgo = btn('Importer depuis Figma et prévisualiser', async () => {
+    binfo.textContent = ''; bproblems.replaceChildren(); delete drafts[c.slug];
+    bgo.disabled = true; bbusy.hidden = false;
+    try {
+      drafts[c.slug] = await api('/import-banner', json('POST', { client: c.slug, url: burl.value, id: bid.value, name: bname.value })); open.add(c.slug); await refresh();
+    } catch (e) {
+      binfo.textContent = e.message;
+      bproblems.replaceChildren(...[...(e.body?.problems || []), ...(e.body?.warnings || []).map((w) => `⚠ ${w}`)].map((p) => el('li', { textContent: p })));
+    } finally { bgo.disabled = false; bbusy.hidden = true; }
+  }, { className: 'primary' });
+  wrap.append(el('h4', { textContent: 'Bannière — depuis Figma' }),
+    el('p', { className: 'hint' }, 'Un cadre par taille nommé ', el('code', { textContent: 'format:1200x628' }), ' ; les textes variables nommés ', el('code', { textContent: 'champ:nom label="Nom" max=40' }), '. Le reste du design est exporté tel quel par Figma.'),
+    field('Lien Figma de la section', burl), field('Identifiant du modèle', bid), field('Nom du modèle', bname), binfo, bproblems, bgo, bbusy);
 
   // Bannière : package web (ZIP)
   const zip = el('input', { type: 'file', accept: '.zip,application/zip' });

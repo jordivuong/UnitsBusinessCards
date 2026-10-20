@@ -4,6 +4,22 @@ Un modèle de bannière est un **package web** : un ZIP de fichiers HTML/CSS, d'
 
 Un package d'exemple est téléchargeable depuis l'Admin (« Télécharger un package d'exemple ») et se trouve dans `examples/banniere-demo/`.
 
+## Depuis Figma (sans écrire de HTML)
+
+Admin → fiche du client → *Ajouter un modèle* → **Bannière — depuis Figma** : coller le lien de la section, un identifiant, un nom. L'app génère le package, affiche l'aperçu de chaque format, *Publier*. Pour modifier : changer le design dans Figma et relancer l'import **avec le même identifiant** (il remplace le modèle). Le package généré se télécharge ensuite (bouton *Package ZIP* du modèle) si l'on veut le retoucher à la main.
+
+**Dans Figma**
+- **Un cadre par taille**, nommé `format:<nom>` (par exemple `format:1200x628` ou `format:leaderboard label="Leaderboard"`). La taille du cadre est la taille de la bannière (1 px = 1 px).
+- **Les textes variables** : calques texte nommés `champ:<nom>` avec options : `label="Nom"`, `max=40` (caractères), `min=24` (corps minimum en px pour l'ajustement), `opt` (facultatif), `sample="Jeanne Martin"` (exemple ; par défaut le texte du calque), `nofit` (désactive l'ajustement automatique du corps, actif par défaut). **Fixez la largeur de la zone de texte** : elle définit la largeur maximale (le mode « largeur automatique » est refusé).
+- **Tout le reste est libre** (formes, images, dégradés, ombres, flous, logos vectoriels) : ce sont des calques fixes, exportés tels quels par Figma (SVG net, ou PNG 2× si le calque contient une image, un flou ou un mode de fusion). Les calques commençant par `_` ou `#` sont ignorés.
+- **Polices** : celles des textes `champ:` doivent être déposées pour le client (Admin → *Polices*, .otf ou .ttf). L'import liste toutes les polices manquantes.
+- Un **champ placé dans un cadre ou un groupe** est accepté : le fond, le dégradé, le rayon d'angle, le contour et l'ombre du cadre sont reproduits en CSS, les autres calques du cadre restent exportés par Figma.
+
+**Limites**
+- Les calques fixes sont des images : seuls les `champ:` varient. Un texte fixe est exporté avec ses lettres en SVG (aucune police à fournir).
+- Non géré : textes pivotés ou conteneur de champ pivoté, dégradés angulaires/losange sur un conteneur de champ, plus de 150 calques fixes par format (regroupez-les ou aplatissez-les : Cmd/Ctrl+E).
+- L'import appelle l'API Figma avec le jeton du serveur : il peut prendre jusqu'à une minute ; Figma limite le nombre de requêtes (l'app l'indique).
+
 ## Contenu du ZIP
 
 ```

@@ -11,6 +11,7 @@ import { ZipArchive } from 'archiver';
 import { renderCard } from './render.js';
 import { renderBanner } from './banner.js';
 import { unzipPackage, analyzePackage, writePackage } from './package.js';
+import { findFormatFrames, exportBannerPackage } from './figma-banner.js';
 import { previewFor, sampleValues } from './previews.js';
 import { addUser, requireAdmin, listUsers, deleteUser, isAdmin, clientOf } from './auth.js';
 
@@ -67,11 +68,11 @@ export function postscriptName(buf) {
 
 const userErr = (message, status = 422) => Object.assign(new Error(message), { status });
 
-async function fetchFigmaNode({ file, node }) {
+async function fetchFigmaNode({ file, node }, { geometry = true } = {}) {
   if (!config.figmaToken) throw userErr("Le jeton Figma n'est pas configuré sur le serveur (FIGMA_TOKEN).", 503);
   let r;
   try {
-    r = await fetch(`https://api.figma.com/v1/files/${file}/nodes?ids=${encodeURIComponent(node)}&geometry=paths`, {
+    r = await fetch(`https://api.figma.com/v1/files/${file}/nodes?ids=${encodeURIComponent(node)}${geometry ? '&geometry=paths' : ''}`, {
       headers: { 'X-Figma-Token': config.figmaToken }, signal: AbortSignal.timeout(30_000),
     });
   } catch { throw userErr('Figma est injoignable (délai dépassé).', 502); }
@@ -95,6 +96,34 @@ const needClient = (slug) => {
   if (!SLUG.test(slug || '') || !getClient(slug)) throw userErr('Client inconnu.', 404);
   return slug;
 };
+
+/** Brouillon d'un modèle numérique : écrit le package, rend l'aperçu de chaque format (valeurs d'exemple). */
+async function makeDigitalDraft(res, slug, id, name, files, template, warnings) {
+  const full = { ...template, id, name: String(name || id).trim().slice(0, 80) };
+  try { validateTemplate(structuredClone(full)); } catch (e) { throw userErr(e.message); }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-draft-'));
+  try {
+    const pkgDir = path.join(dir, 'pkg');
+    writePackage(pkgDir, files);
+    const t = { ...full, pkgDir, client: slug };
+    const previews = [];
+    for (const f of t.formats) {
+      const out = await renderBanner(t, sampleValues(t), { format: f.id, scale: 1, type: 'png' });
+      fs.writeFileSync(path.join(dir, `apercu-${f.id}.png`), out.buffer);
+      previews.push(`apercu-${f.id}.png`);
+    }
+    const draft = crypto.randomBytes(16).toString('hex');
+    drafts.set(draft, { dir, created: Date.now(), client: slug, template: full, previews, pkgDir });
+    res.json({
+      draft, template: { id, name: full.name, kind: 'digital', formats: t.formats.map((f) => f.label), fields: t.fields.map((f) => f.label) },
+      previews: previews.length, warnings, testProfile: false,
+    });
+  } catch (e) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    if (e.user) throw userErr(`${e.message} (avec les valeurs d'exemple : data-sample)`);
+    throw e;
+  }
+}
 
 export function adminRouter() {
   const r = express.Router();
@@ -131,6 +160,18 @@ export function adminRouter() {
     const f = out.files[Number(req.params.page) - 1];
     if (!f) return res.status(404).end();
     res.type('png').sendFile(path.join(out.dir, f));
+  }));
+
+  r.get('/templates/:client/:id/package.zip', wrap((req, res) => {
+    const slug = needClient(req.params.client);
+    const t = getClient(slug).templates.get(req.params.id);
+    if (!t || t.kind !== 'digital') return res.status(404).end();
+    res.type('zip').attachment(`${t.id}.zip`);
+    const z = new ZipArchive({ zlib: { level: 6 } });
+    z.on('error', () => res.destroy());
+    z.pipe(res);
+    z.directory(t.pkgDir, false);
+    z.finalize();
   }));
 
   r.post('/clients', wrap((req, res) => {
@@ -208,31 +249,28 @@ export function adminRouter() {
     try { files = unzipPackage(req.file.buffer); } catch (e) { if (e.user) throw userErr(e.message); throw e; }
     const { template, errors, warnings } = analyzePackage(files);
     if (!template) return res.status(422).json({ error: 'Le package ne respecte pas les conventions.', problems: errors, warnings });
-    const full = { ...template, id, name: String(name || id).trim().slice(0, 80) };
-    try { validateTemplate(structuredClone(full)); } catch (e) { throw userErr(e.message); }
+    await makeDigitalDraft(res, slug, id, name, files, template, warnings);
+  }));
 
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-draft-'));
+  // Bannière depuis Figma : décor exporté par Figma, champs `champ:` en texte HTML (docs/BANNIERES.md).
+  r.post('/import-banner', wrap(async (req, res) => {
+    const { client, url, id, name } = req.body || {};
+    const slug = needClient(client);
+    if (!ID.test(id || '')) throw userErr('Identifiant du modèle : a-z, 0-9 et tirets.');
+    const ref = parseFigmaUrl(url);
+    if (!ref) throw userErr('Lien Figma invalide : collez le lien de la section (il doit contenir node-id=…).');
+    if (getClient(slug).templates.get(id)?.builtin) throw userErr('Cet identifiant est celui d\'un modèle intégré : choisissez-en un autre.');
+    const found = findFormatFrames(await fetchFigmaNode(ref, { geometry: false }));
+    if (found.error) throw userErr(found.error);
+    const fontDirs = clientFontDirs(slug);
+    let out;
     try {
-      const pkgDir = path.join(dir, 'pkg');
-      writePackage(pkgDir, files);
-      const t = { ...full, pkgDir, client: slug };
-      const previews = [];
-      for (const f of t.formats) {
-        const out = await renderBanner(t, sampleValues(t), { format: f.id, scale: 1, type: 'png' });
-        fs.writeFileSync(path.join(dir, `apercu-${f.id}.png`), out.buffer);
-        previews.push(`apercu-${f.id}.png`);
-      }
-      const draft = crypto.randomBytes(16).toString('hex');
-      drafts.set(draft, { dir, created: Date.now(), client: slug, template: full, previews, pkgDir });
-      res.json({
-        draft, template: { id, name: full.name, kind: 'digital', formats: t.formats.map((f) => f.label), fields: t.fields.map((f) => f.label) },
-        previews: previews.length, warnings, testProfile: false,
-      });
-    } catch (e) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      if (e.user) throw userErr(`${e.message} (avec les valeurs d'exemple : data-sample)`);
-      throw e;
-    }
+      out = await exportBannerPackage(found.frames, { token: config.figmaToken, fileKey: ref.file, findFont: (ps) => fontPath(ps, { fontDirs }) });
+    } catch (e) { if (e.user) throw userErr(e.message); throw e; }
+    if (!out.files) return res.status(422).json({ error: 'Le design Figma ne respecte pas les conventions.', problems: out.errors, warnings: out.warnings });
+    const { template, errors, warnings } = analyzePackage(out.files);
+    if (!template) return res.status(422).json({ error: 'Le package généré est invalide.', problems: errors, warnings: [...out.warnings, ...warnings] });
+    await makeDigitalDraft(res, slug, id, name, out.files, template, [...out.warnings, ...warnings]);
   }));
 
   // Import depuis Figma : valide, rend une carte d'essai, garde un brouillon (rien n'est publié).
