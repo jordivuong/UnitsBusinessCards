@@ -61,7 +61,11 @@
           <p class="error" id="liveError" role="alert"></p>
           <div id="livePreview" class="tplPreview" aria-live="polite"></div>
         </div>
-        <label class="check"><input type="checkbox" id="marks"> Inclure les traits de coupe (PDF plus grand, 103 × 73 mm)</label>
+        <div id="digitalOptions" class="inline" hidden>
+          <label>Format de fichier <select id="outType"><option value="png">PNG (qualité maximale)</option><option value="jpeg">JPG (plus léger)</option><option value="webp">WebP (web)</option></select></label>
+          <label>Résolution <select id="outScale"><option value="1">Taille réelle (1×)</option><option value="2">Écrans haute densité (2×)</option></select></label>
+        </div>
+        <label class="check" id="marksRow"><input type="checkbox" id="marks"> Inclure les traits de coupe (PDF plus grand, 103 × 73 mm)</label>
         <p class="error" id="jobError" role="alert"></p>
         <button class="primary" id="go">Générer les cartes</button>
         <p class="hint" id="busy" hidden>Génération en cours… (quelques secondes par carte)</p>
@@ -83,7 +87,7 @@
         </div>
         <div class="panel">
           <h2>3. Téléchargez</h2>
-          <p class="hint">Un fichier PDF/X-3 CMJN par carte, prêt à envoyer à l'imprimeur (archive ZIP).</p>
+          <p class="hint" id="dlHint">Un fichier PDF/X-3 CMJN par carte, prêt à envoyer à l'imprimeur (archive ZIP).</p>
           <a class="button primary" id="zip" href="#">Télécharger le ZIP des PDF</a>
         </div>
       </section>

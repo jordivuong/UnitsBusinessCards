@@ -4,10 +4,13 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { config } from './config.js';
+import { config, ROOT } from './config.js';
 import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, fontPath, readSettings, writeSettings, isBuiltinClient } from './template.js';
 import { figmaToTemplate } from './figma.js';
+import { ZipArchive } from 'archiver';
 import { renderCard } from './render.js';
+import { renderBanner } from './banner.js';
+import { unzipPackage, analyzePackage, writePackage } from './package.js';
 import { previewFor, sampleValues } from './previews.js';
 import { addUser, requireAdmin, listUsers, deleteUser, isAdmin, clientOf } from './auth.js';
 
@@ -113,7 +116,7 @@ export function adminRouter() {
         if (fs.existsSync(d)) for (const f of fs.readdirSync(d)) if (FONT_FILE.test(f)) fonts.add(f.replace(/\.otf$/, ''));
       return {
         slug: c.slug, name: c.name, builtin: isBuiltinClient(c.slug), fonts: [...fonts].sort(),
-        templates: [...c.templates.values()].map((t) => ({ id: t.id, name: t.name, builtin: !!t.builtin, hidden: !!t.hidden, fields: t.fields.length, pages: t.pages.length })),
+        templates: [...c.templates.values()].map((t) => ({ id: t.id, name: t.name, kind: t.kind === 'digital' ? 'digital' : 'print', builtin: !!t.builtin, hidden: !!t.hidden, fields: t.fields.length, pages: t.kind === 'digital' ? t.formats.length : t.pages.length })),
         users: users.filter((u) => u.client === c.slug).map((u) => ({ email: u.email, admin: isAdmin(u.email) })).sort((a, b) => a.email.localeCompare(b.email)),
       };
     });
@@ -185,6 +188,53 @@ export function adminRouter() {
     res.json({ saved });
   }));
 
+  // Package web (bannières) : ZIP de HTML/CSS, images, polices. Valide, rend un aperçu de chaque format, garde un brouillon.
+  const pkgUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024, files: 1, fields: 2 } });
+  r.get('/example-package.zip', wrap((req, res) => {
+    res.type('zip').attachment('exemple-banniere.zip');
+    const z = new ZipArchive({ zlib: { level: 6 } });
+    z.on('error', () => res.destroy());
+    z.pipe(res);
+    z.directory(path.join(ROOT, 'examples', 'banniere-demo'), false);
+    z.finalize();
+  }));
+  r.post('/packages', pkgUpload.single('zip'), wrap(async (req, res) => {
+    const slug = needClient(req.query.client);
+    const { id, name } = req.query;
+    if (!ID.test(id || '')) throw userErr('Identifiant du modèle : a-z, 0-9 et tirets.');
+    if (getClient(slug).templates.get(id)?.builtin) throw userErr('Cet identifiant est celui d\'un modèle intégré : choisissez-en un autre.');
+    if (!req.file) throw userErr('Ajoutez le fichier ZIP du modèle.');
+    let files;
+    try { files = unzipPackage(req.file.buffer); } catch (e) { if (e.user) throw userErr(e.message); throw e; }
+    const { template, errors, warnings } = analyzePackage(files);
+    if (!template) return res.status(422).json({ error: 'Le package ne respecte pas les conventions.', problems: errors, warnings });
+    const full = { ...template, id, name: String(name || id).trim().slice(0, 80) };
+    try { validateTemplate(structuredClone(full)); } catch (e) { throw userErr(e.message); }
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-draft-'));
+    try {
+      const pkgDir = path.join(dir, 'pkg');
+      writePackage(pkgDir, files);
+      const t = { ...full, pkgDir, client: slug };
+      const previews = [];
+      for (const f of t.formats) {
+        const out = await renderBanner(t, sampleValues(t), { format: f.id, scale: 1, type: 'png' });
+        fs.writeFileSync(path.join(dir, `apercu-${f.id}.png`), out.buffer);
+        previews.push(`apercu-${f.id}.png`);
+      }
+      const draft = crypto.randomBytes(16).toString('hex');
+      drafts.set(draft, { dir, created: Date.now(), client: slug, template: full, previews, pkgDir });
+      res.json({
+        draft, template: { id, name: full.name, kind: 'digital', formats: t.formats.map((f) => f.label), fields: t.fields.map((f) => f.label) },
+        previews: previews.length, warnings, testProfile: false,
+      });
+    } catch (e) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      if (e.user) throw userErr(`${e.message} (avec les valeurs d'exemple : data-sample)`);
+      throw e;
+    }
+  }));
+
   // Import depuis Figma : valide, rend une carte d'essai, garde un brouillon (rien n'est publié).
   r.post('/import', wrap(async (req, res) => {
     const { client, url, id, name } = req.body || {};
@@ -246,6 +296,11 @@ export function adminRouter() {
     const file = path.join(dir, `${d.template.id}.json`);
     fs.writeFileSync(file + '.tmp', JSON.stringify(d.template, null, 2) + '\n');
     fs.renameSync(file + '.tmp', file);
+    if (d.pkgDir) { // modèle numérique : le package accompagne le JSON (<id>.pkg/)
+      const dest = path.join(dir, `${d.template.id}.pkg`);
+      fs.rmSync(dest, { recursive: true, force: true });
+      fs.cpSync(d.pkgDir, dest, { recursive: true });
+    }
     dropDraft(req.params.id);
     resetClients();
     loadClients();
@@ -259,6 +314,7 @@ export function adminRouter() {
     if (!t) throw userErr('Modèle introuvable.', 404);
     if (t.builtin) throw userErr('Modèle intégré au dépôt : il ne se retire pas depuis cette page.');
     fs.rmSync(path.join(clientDir(slug), 'templates', `${req.params.id}.json`), { force: true });
+    fs.rmSync(path.join(clientDir(slug), 'templates', `${req.params.id}.pkg`), { recursive: true, force: true });
     resetClients();
     res.json({ ok: true });
   }));
@@ -282,10 +338,13 @@ export function adminRouter() {
     const t = getClient(src).templates.get(id);
     if (!t) throw userErr('Modèle introuvable.', 404);
     if (getClient(dst).templates.has(newId)) throw userErr(`Le client « ${dst} » a déjà un modèle « ${newId} » : choisissez un autre identifiant.`);
-    const copy = { id: newId, name: t.name, profile: t.profile, trim: t.trim, bleed: t.bleed, palette: t.palette, pages: t.pages };
+    const copy = t.kind === 'digital'
+      ? { kind: 'digital', id: newId, name: t.name, formats: t.formats, fields: t.fields, rev: t.rev }
+      : { id: newId, name: t.name, profile: t.profile, trim: t.trim, bleed: t.bleed, palette: t.palette, pages: t.pages };
     try { validateTemplate(structuredClone(copy), clientFontDirs(dst)); }
     catch (e) { throw userErr(`${e.message} Ajoutez d'abord les polices au client « ${dst} ».`); }
     fs.mkdirSync(path.join(clientDir(dst), 'templates'), { recursive: true });
+    if (t.kind === 'digital') fs.cpSync(t.pkgDir, path.join(clientDir(dst), 'templates', `${newId}.pkg`), { recursive: true });
     fs.writeFileSync(path.join(clientDir(dst), 'templates', `${newId}.json`), JSON.stringify(copy, null, 2) + '\n');
     resetClients();
     res.json({ ok: true });

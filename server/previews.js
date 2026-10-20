@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { renderCard } from './render.js';
+import { renderBanner } from './banner.js';
 
 /**
  * Aperçus (PNG rastérisés depuis le vrai PDF/X-3) de modèles et de cartes, mis en cache dans le dossier temporaire :
@@ -17,7 +18,7 @@ const SAMPLE = {
   nom: 'Jeanne Martin', titre: 'Directrice commerciale', telephone: '01 23 45 67 89',
   email: 'jeanne.martin@exemple.fr', site: 'www.exemple.fr',
 };
-export const sampleValues = (t) => Object.fromEntries(t.fields.map((f) => [f.name, String(SAMPLE[f.name] ?? f.label).slice(0, f.maxChars)]));
+export const sampleValues = (t) => Object.fromEntries(t.fields.map((f) => [f.name, String(f.sample ?? SAMPLE[f.name] ?? f.label).slice(0, f.maxChars)]));
 
 // Au plus 2 rendus Ghostscript en parallèle (le serveur est petit).
 let active = 0;
@@ -34,7 +35,7 @@ function limited(fn) {
 
 const inflight = new Map();
 const keyOf = (t, values, scope) =>
-  crypto.createHash('sha256').update(JSON.stringify([scope, t.id, t.profile, t.trim, t.bleed, t.palette, t.pages, values])).digest('hex').slice(0, 24);
+  crypto.createHash('sha256').update(JSON.stringify([scope, t.id, t.profile, t.trim, t.bleed, t.palette, t.pages, t.formats, t.rev, values])).digest('hex').slice(0, 24);
 
 function evict() {
   try {
@@ -52,10 +53,20 @@ export function previewFor(template, values, scope) {
     inflight.set(key, limited(async () => {
       fs.mkdirSync(dir, { recursive: true });
       try {
-        const r = await renderCard(template, values, { dir, withMarks: false, logo: null, name: 'apercu' });
-        fs.writeFileSync(done, JSON.stringify(r.previews));
+        let files;
+        if (template.kind === 'digital') {
+          files = [];
+          for (const f of template.formats) {
+            const out = await renderBanner(template, values, { format: f.id, scale: 1, type: 'png' });
+            fs.writeFileSync(path.join(dir, `apercu-${f.id}.png`), out.buffer);
+            files.push(`apercu-${f.id}.png`);
+          }
+        } else {
+          files = (await renderCard(template, values, { dir, withMarks: false, logo: null, name: 'apercu' })).previews;
+        }
+        fs.writeFileSync(done, JSON.stringify(files));
         evict();
-        return { key, dir, files: r.previews };
+        return { key, dir, files };
       } catch (e) { fs.rmSync(dir, { recursive: true, force: true }); throw e; }
     }).finally(() => inflight.delete(key)));
   }

@@ -76,3 +76,8 @@ Les comptes (volume `cartes-data`) et les certificats (volume `caddy-data`) sont
 
 Seul le volume `cartes-data` contient des données : comptes, modèles/polices de la page Admin (`clients/`) et cartes enregistrées (`cards/`). Aucun PDF n'est conservé. À sauvegarder.
 `docker run --rm -v unitsbusinesscards_cartes-data:/d -v "$PWD":/b alpine tar czf /b/cartes-data.tgz -C /d .`
+
+
+## Bannières : Chromium et mémoire
+
+L'image embarque Chromium (rendu des bannières). Le conteneur `cartes` est plafonné à 1 Go de RAM (`mem_limit`) pour qu'un rendu gourmand ne puisse jamais affecter les autres services du serveur ; le navigateur n'est lancé qu'à la demande et fermé après une minute d'inactivité.

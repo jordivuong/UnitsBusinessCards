@@ -2,6 +2,8 @@ services:
   cartes:
     build: .
     restart: unless-stopped
+    mem_limit: 1g        # le rendu des bannières (Chromium) ne doit jamais pouvoir affecter les autres services du serveur
+    pids_limit: 400
     expose:
       - "3000"                  # non publié : seul Caddy y accède
     environment:

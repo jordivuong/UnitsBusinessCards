@@ -59,8 +59,8 @@ function renderClient(c) {
   box.append(el('h3', { textContent: 'Modèles disponibles pour ce client' }));
   const tl = el('ul', { className: 'tpl' });
   for (const t of c.templates) {
-    const li = el('li', {}, el('b', { textContent: t.name }), ` — ${t.id} · ${t.fields} champ(s) · ${t.pages} page(s) `,
-      t.builtin ? el('span', { className: 'badge', textContent: 'intégré' }) : '', t.hidden ? el('span', { className: 'badge warn', textContent: 'masqué' }) : '');
+    const li = el('li', {}, el('b', { textContent: t.name }), ` — ${t.id} · ${t.fields} champ(s) · ${t.pages} ${t.kind === 'digital' ? 'format(s)' : 'page(s)'} `,
+      t.kind === 'digital' ? el('span', { className: 'badge', textContent: 'bannières' }) : '', t.builtin ? el('span', { className: 'badge', textContent: 'intégré' }) : '', t.hidden ? el('span', { className: 'badge warn', textContent: 'masqué' }) : '');
     li.append(el('div', { className: 'thumbs' }, ...Array.from({ length: t.pages }, (_, i) => el('img', {
       src: `/api/admin/templates/${c.slug}/${t.id}/preview/${i + 1}.png`, alt: `Aperçu de ${t.name}, page ${i + 1}`, loading: 'lazy' }))));
     li.append(btn(t.hidden ? 'Afficher' : 'Masquer', () => run(async () => { await api(`/templates/${c.slug}/${t.id}/visibility`, json('POST', { hidden: !t.hidden })); await refresh(); }),
@@ -127,7 +127,7 @@ function renderClient(c) {
 }
 
 function importSection(c, run) {
-  const wrap = el('div', { className: 'importBox' }, el('h3', { textContent: 'Importer un modèle depuis Figma' }));
+  const wrap = el('div', { className: 'importBox' }, el('h3', { textContent: 'Ajouter un modèle' }), el('p', { className: 'hint', textContent: 'Carte imprimée : depuis un design Figma. Bannière : depuis un package web (ZIP).' }), el('h4', { textContent: 'Carte imprimée — depuis Figma' }));
   const url = el('input', { type: 'text', placeholder: 'https://www.figma.com/design/…?node-id=1-2' });
   const id = el('input', { type: 'text', placeholder: 'carte-v1', pattern: '[a-z0-9\\-]{1,40}' });
   const name = el('input', { type: 'text', placeholder: 'Carte ACME' });
@@ -147,6 +147,30 @@ function importSection(c, run) {
   }, { className: 'primary' });
   wrap.append(field('Lien Figma de la section (clic droit → Copy link to selection)', url), field('Identifiant du modèle', id), field('Nom du modèle', name), info, problems, go, busy);
 
+  // Bannière : package web (ZIP)
+  const zip = el('input', { type: 'file', accept: '.zip,application/zip' });
+  const pid = el('input', { type: 'text', placeholder: 'banniere-v1', pattern: '[a-z0-9\\-]{1,40}' });
+  const pname = el('input', { type: 'text', placeholder: 'Bannières ACME' });
+  const pinfo = el('p', { className: 'error', role: 'alert' }), pproblems = el('ul', { className: 'problems' });
+  const pbusy = el('p', { className: 'hint', textContent: 'Analyse et rendu des aperçus…', hidden: true });
+  const pgo = btn('Importer le package et prévisualiser', async () => {
+    pinfo.textContent = ''; pproblems.replaceChildren(); delete drafts[c.slug];
+    if (!zip.files.length) { pinfo.textContent = 'Choisissez le fichier ZIP du modèle.'; return; }
+    const fd = new FormData(); fd.append('zip', zip.files[0]);
+    pgo.disabled = true; pbusy.hidden = false;
+    try {
+      const q = new URLSearchParams({ client: c.slug, id: pid.value, name: pname.value });
+      drafts[c.slug] = await api(`/packages?${q}`, { method: 'POST', body: fd }); open.add(c.slug); await refresh();
+    } catch (e) {
+      pinfo.textContent = e.message;
+      pproblems.replaceChildren(...[...(e.body?.problems || []), ...(e.body?.warnings || []).map((w) => `⚠ ${w}`)].map((p) => el('li', { textContent: p })));
+    } finally { pgo.disabled = false; pbusy.hidden = true; }
+  }, { className: 'primary' });
+  wrap.append(el('h4', { textContent: 'Bannière — depuis un package web (HTML/CSS, images, polices)' }),
+    el('p', { className: 'hint' }, 'Un fichier .html par format, taille dans ', el('code', { textContent: '<meta name="banner:size">' }), ', champs variables en ', el('code', { textContent: 'data-field' }), '. ',
+      el('a', { href: '/api/admin/example-package.zip', textContent: 'Télécharger un package d\'exemple' })),
+    field('Fichier ZIP', zip), field('Identifiant du modèle', pid), field('Nom du modèle', pname), pinfo, pproblems, pgo, pbusy);
+
   const d = drafts[c.slug];
   if (d) {
     wrap.append(el('h3', { textContent: `Aperçu : ${d.template.name}` }));
@@ -154,7 +178,7 @@ function importSection(c, run) {
     wrap.append(el('ul', { className: 'warns' }, ...d.warnings.map((w) => el('li', { textContent: w }))));
     wrap.append(el('div', { className: 'cards' }, ...Array.from({ length: d.previews }, (_, i) =>
       el('div', { className: 'sheet' }, el('img', { src: `/api/admin/drafts/${d.draft}/preview/${i + 1}.png`, alt: `Aperçu du modèle, page ${i + 1}` })))));
-    wrap.append(el('p', { className: 'hint', textContent: `${d.template.trim.w} × ${d.template.trim.h} mm. Champs : ${d.template.fields.join(', ')}.` }));
+    wrap.append(el('p', { className: 'hint', textContent: `${d.template.trim ? `${d.template.trim.w} × ${d.template.trim.h} mm` : `Formats : ${d.template.formats.join(' · ')}`}. Champs : ${d.template.fields.join(', ')}.` }));
     const pe = el('p', { className: 'error', role: 'alert' });
     wrap.append(btn('Publier ce modèle pour ce client', async () => {
       pe.textContent = '';

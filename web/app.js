@@ -27,7 +27,7 @@ async function showApp(email, admin = false, clientSlug = null) {
   $('#whoEmail').textContent = email;
   templates = await api('/api/templates');
   const sel = $('#template');
-  sel.replaceChildren(...templates.map((t) => Object.assign(document.createElement('option'), { value: t.id, textContent: `${t.name} (${t.trim.w} × ${t.trim.h} mm)` })));
+  sel.replaceChildren(...templates.map((t) => Object.assign(document.createElement('option'), { value: t.id, textContent: t.kind === 'digital' ? `${t.name} (bannières · ${t.formats.length} format${t.formats.length > 1 ? 's' : ''})` : `${t.name} (${t.trim.w} × ${t.trim.h} mm)` })));
   try { const last = localStorage.getItem('ubc.template'); if (templates.some((t) => t.id === last)) sel.value = last; } catch { /* stockage indisponible */ }
   onTemplate();
   $('#jobError').textContent = templates.length ? '' : "Aucun modèle n'est disponible pour ce compte.";
@@ -40,11 +40,14 @@ function onTemplate() {
   $('#columns').textContent = t.fields.map((f) => f.label + (f.optional ? ' (facultatif)' : '')).join(', ');
   $('#sample').href = `/api/templates/${t.id}/exemple.csv`;
   buildManual(t);
+  $('#digitalOptions').hidden = t.kind !== 'digital';
+  $('#marksRow').hidden = t.kind === 'digital';
   const pv = $('#tplPreview');
   pv.replaceChildren(...imgs(Array.from({ length: t.pages }, (_, i) => `/api/templates/${t.id}/preview/${i + 1}.png${asQuery()}`), `Aperçu du modèle ${t.name}`));
   $('#tplPreviewHint').hidden = false;
   $('#livePreview').replaceChildren();
 }
+const outOpts = () => (templates.find((x) => x.id === $('#template').value)?.kind === 'digital' ? { type: $('#outType').value, scale: Number($('#outScale').value) } : {});
 const mode = () => document.querySelector('[name=mode]:checked').value;
 function buildManual(t) {
   $('#modeManual').replaceChildren(...t.fields.map((f) => {
@@ -103,6 +106,7 @@ $('#jobForm').addEventListener('submit', async (e) => {
   const fd = new FormData();
   fd.append('templateId', $('#template').value);
   fd.append('marks', $('#marks').checked ? '1' : '0');
+  for (const [k, v] of Object.entries(outOpts())) fd.append(k, v);
   if (mode() === 'manual') fd.append('csv', manualCsv(), 'carte.csv');
   else fd.append('csv', $('#csv').files[0]);
   $('#go').disabled = true; $('#busy').hidden = false;
@@ -126,8 +130,11 @@ function render(job) {
     box.append(ul); failed.append(box);
   }
 
-  const g = job.geometry, margin = g.marks ? 9 : g.bleed;
-  const W = g.trim.w + 2 * margin, H = g.trim.h + 2 * margin;
+  const g = job.geometry, margin = g ? (g.marks ? 9 : g.bleed) : 0;
+  const W = g ? g.trim.w + 2 * margin : 1, H = g ? g.trim.h + 2 * margin : 1;
+  document.querySelector('.layers').hidden = !g; // calques (fonds perdus, coupe…) : cartes imprimées seulement
+  $('#dlHint').textContent = g ? 'Un fichier PDF/X-3 CMJN par carte, prêt à envoyer à l\'imprimeur (archive ZIP).' : 'Une image par format et par bannière, prête à publier (archive ZIP).';
+  $('#zip').textContent = g ? 'Télécharger le ZIP des PDF' : 'Télécharger le ZIP des bannières';
   const place = (el, inset) => {
     Object.assign(el.style, { left: `${(inset / W) * 100}%`, right: `${(inset / W) * 100}%`, top: `${(inset / H) * 100}%`, bottom: `${(inset / H) * 100}%` });
   };
@@ -142,7 +149,7 @@ function render(job) {
       sheet.append(Object.assign(document.createElement('img'), {
         src: `/api/jobs/${job.id}/cards/${c.n}/preview/${p}.png`, alt: `Aperçu de la carte de ${c.label}, page ${p}`, loading: 'lazy',
       }));
-      for (const [name, inset] of [['bleed', margin - g.bleed], ['trim', margin], ['safe', margin + g.safe]]) {
+      if (g) for (const [name, inset] of [['bleed', margin - g.bleed], ['trim', margin], ['safe', margin + g.safe]]) {
         const b = Object.assign(document.createElement('div'), { className: `box ${name}` });
         place(b, inset); sheet.append(b);
       }
@@ -153,7 +160,8 @@ function render(job) {
       for (const w of c.warnings) ul.append(Object.assign(document.createElement('li'), { textContent: w }));
       el.append(ul);
     }
-    el.append(Object.assign(document.createElement('a'), { className: 'button', href: `/api/jobs/${job.id}/cards/${c.n}/pdf`, textContent: 'PDF de cette carte' }));
+    if (c.downloads) for (const d of c.downloads) el.append(Object.assign(document.createElement('a'), { className: 'button', href: d.url, textContent: d.label }), ' ');
+    else el.append(Object.assign(document.createElement('a'), { className: 'button', href: `/api/jobs/${job.id}/cards/${c.n}/pdf`, textContent: 'PDF de cette carte' }));
     cards.append(el);
   }
   $('#zip').href = `/api/jobs/${job.id}/archive.zip`;
@@ -189,7 +197,7 @@ function syncSelection() { $('#zipSelected').disabled = !selectedIds().length; }
 
 async function renderCards(ids) {
   $('#cardsError').textContent = '';
-  try { render(await api('/api/cards/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids, marks: $('#marks').checked }) })); }
+  try { render(await api('/api/cards/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids, marks: $('#marks').checked, ...outOpts() }) })); }
   catch (err) { $('#cardsError').textContent = err.message; }
 }
 $('#zipSelected').addEventListener('click', () => renderCards(selectedIds()));
@@ -222,7 +230,7 @@ $('#editForm').addEventListener('submit', async (e) => {
   const values = Object.fromEntries([...$('#editFields').querySelectorAll('input')].map((i) => [i.name, i.value]));
   $('#editSave').disabled = true;
   try {
-    const job = await api(`/api/cards/${editing.id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ values, marks: $('#editMarks').checked }) });
+    const job = await api(`/api/cards/${editing.id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ values, marks: $('#editMarks').checked, ...outOpts() }) });
     closeEdit(); render(job); await loadCards();
   } catch (err) { $('#editError').textContent = err.message; }
   finally { $('#editSave').disabled = false; }

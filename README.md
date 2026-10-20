@@ -5,7 +5,7 @@ Les clients se connectent, envoient un **CSV** (une ligne par carte) et un logo 
 chaque carte (aperçu rastérisé depuis le PDF final), puis téléchargent les PDF prêts pour l'imprimeur
 (un PDF par carte, regroupés dans un ZIP).
 
-Spécification complète : [`docs/SPEC.md`](docs/SPEC.md).
+Spécification complète : [`docs/SPEC.md`](docs/SPEC.md). Les **bannières** (formats numériques, packages HTML/CSS) : [`docs/BANNIERES.md`](docs/BANNIERES.md).
 
 ## Chaîne de génération
 

@@ -90,3 +90,4 @@ h2.section { margin: 24px 0 8px; }
 .thumbs { flex: 1 1 100%; display: flex; gap: 12px; flex-wrap: wrap; }
 .thumbs img { width: min(220px, 100%); }
 .cardlist .thumb { width: 96px; height: auto; aspect-ratio: 91 / 61; background: #fff; border: 1px solid var(--line); border-radius: 3px; }
+.importBox h4 { margin: 16px 0 4px; font-size: .92rem; color: var(--muted); }

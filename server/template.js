@@ -13,7 +13,29 @@ function fail(id, msg) {
   throw new Error(`Template ${id} : ${msg}`);
 }
 
+/** Modèle numérique (bannières) : formats HTML + champs texte ; les fichiers du package sont dans <id>.pkg/. */
+function validateDigital(t) {
+  const id = t.id || '(sans id)';
+  if (!/^[a-z0-9-]+$/.test(t.id || '')) fail(id, 'id invalide');
+  if (!Array.isArray(t.formats) || t.formats.length < 1 || t.formats.length > 12) fail(id, '1 à 12 formats attendus');
+  const seen = new Set();
+  for (const f of t.formats) {
+    if (!/^[a-z0-9-]+$/.test(f.id || '') || seen.has(f.id)) fail(id, `format invalide : ${f.id}`);
+    seen.add(f.id);
+    if (!/^[A-Za-z0-9._-]+\.html$/i.test(f.file || '')) fail(id, `fichier de format invalide : ${f.file}`);
+    if (!(Number.isInteger(f.w) && Number.isInteger(f.h) && f.w >= 16 && f.h >= 16 && f.w <= 4096 && f.h <= 4096)) fail(id, `taille invalide : ${f.id}`);
+  }
+  const names = new Set();
+  for (const f of t.fields || []) {
+    if (!/^[a-z0-9][a-z0-9_-]{0,30}$/.test(f.name || '') || names.has(f.name)) fail(id, `champ invalide : ${f.name}`);
+    names.add(f.name);
+  }
+  t.fields = (t.fields || []).map((f) => ({ name: f.name, label: f.label || f.name, maxChars: f.maxChars || 80, optional: !!f.optional, sample: f.sample }));
+  return t;
+}
+
 export function validateTemplate(t, fontDirs = [config.fontsDir]) {
+  if (t.kind === 'digital') return validateDigital(t);
   const id = t.id || '(sans id)';
   if (!/^[a-z0-9-]+$/.test(t.id || '')) fail(id, 'id invalide');
   if (!(t.trim?.w > 0 && t.trim?.h > 0)) fail(id, 'format fini manquant');
@@ -123,6 +145,10 @@ export function loadClients() {
           const t = validateTemplate(JSON.parse(fs.readFileSync(path.join(tdir, f), 'utf8')), fontDirs);
           t.fontDirs = fontDirs;
           t.client = slug;
+          if (t.kind === 'digital') {
+            t.pkgDir = path.join(tdir, `${t.id}.pkg`);
+            if (!fs.existsSync(t.pkgDir)) throw new Error('dossier du package introuvable');
+          }
           t.builtin = root === config.clientsDir;
           t.hidden = hidden.has(t.id);
           templates.set(t.id, t);

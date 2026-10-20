@@ -57,5 +57,5 @@ export function sampleCsv(template) {
     nom: 'Jeanne Martin', titre: 'Directrice commerciale', telephone: '01 23 45 67 89',
     email: 'jeanne.martin@exemple.fr', site: 'www.exemple.fr',
   };
-  return '﻿' + head + '\r\n' + template.fields.map((f) => ex[f.name] ?? '').join(';') + '\r\n';
+  return '﻿' + head + '\r\n' + template.fields.map((f) => f.sample ?? ex[f.name] ?? '').join(';') + '\r\n';
 }
