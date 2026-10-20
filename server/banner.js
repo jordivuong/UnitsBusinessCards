@@ -103,7 +103,7 @@ export async function renderBanner(template, values, { format, scale = 1, type =
         for (const el of document.querySelectorAll('[data-field][data-fit]')) {
           if (el.hidden) continue;
           let size = parseFloat(getComputedStyle(el).fontSize);
-          const min = parseFloat(el.dataset.minSize || '') || size / 2;
+          const min = Math.min(parseFloat(el.dataset.minSize || '') || size / 2, size); // un minimum au-dessus du corps de départ n'empêche rien
           const over = () => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
           while (over() && size > min) { size -= 0.5; el.style.fontSize = `${size}px`; }
           if (over()) overflow.push(el.dataset.field);
