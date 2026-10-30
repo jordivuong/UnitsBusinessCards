@@ -35,3 +35,9 @@ test('postscriptName : lu dans la police, quel que soit le nom du fichier', () =
   assert.equal(postscriptName(Buffer.from('pas une police')), null);
   assert.equal(postscriptName(Buffer.alloc(3)), null);
 });
+
+test('noms PostScript : points acceptés (AllianceNo.1-Light), traversée refusée', async () => {
+  const { PS_NAME } = await import('../server/template.js');
+  for (const ok of ['AllianceNo.1-Light', 'Inter-Bold', 'PPMori-SemiBold']) assert.ok(PS_NAME.test(ok), ok);
+  for (const bad of ['..', '../x', 'a..b', '.hidden', 'a/b', 'a b', '']) assert.ok(!PS_NAME.test(bad), bad);
+});

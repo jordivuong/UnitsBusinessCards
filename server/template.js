@@ -83,9 +83,12 @@ export function validateTemplate(t, fontDirs = [config.fontsDir]) {
   return t;
 }
 
+/** Nom PostScript valide pour un nom de fichier : lettres, chiffres, tirets et points (« AllianceNo.1-Light »), sans « .. » ni point initial. */
+export const PS_NAME = /^(?!\.)(?!.*\.\.)[A-Za-z0-9.-]{1,80}$/;
+
 /** Chemin d'une police (nom PostScript) : dossier fonts/ du client d'abord, puis polices partagées. */
 export function fontPath(name, template) {
-  if (!/^[A-Za-z0-9-]+$/.test(name || '')) return null;
+  if (!PS_NAME.test(name || '')) return null;
   for (const dir of template.fontDirs) {
     const f = path.join(dir, `${name}.otf`);
     if (fs.existsSync(f)) return f;

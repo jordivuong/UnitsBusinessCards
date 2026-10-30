@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config, ROOT } from './config.js';
-import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, fontPath, readSettings, writeSettings, isBuiltinClient } from './template.js';
+import { SLUG, RESERVED_SLUGS, validateTemplate, loadClients, resetClients, getClient, clientFontDirs, fontPath, PS_NAME, readSettings, writeSettings, isBuiltinClient } from './template.js';
 import { figmaToTemplate } from './figma.js';
 import { ZipArchive } from 'archiver';
 import { renderCard } from './render.js';
@@ -16,7 +16,7 @@ import { previewFor, sampleValues } from './previews.js';
 import { addUser, requireAdmin, listUsers, deleteUser, isAdmin, clientOf } from './auth.js';
 
 const ID = /^[a-z0-9-]{1,40}$/;
-const FONT_FILE = /^[A-Za-z0-9-]{1,80}\.otf$/;
+const FONT_FILE = /^(?!\.)(?!.*\.\.)[A-Za-z0-9.-]{1,80}\.otf$/;
 
 /** Lien Figma → { file, node }. Seul l'hôte figma.com est accepté ; l'API appelée est toujours api.figma.com. */
 export function parseFigmaUrl(raw) {
@@ -59,7 +59,7 @@ export function postscriptName(buf) {
         const platform = buf.readUInt16BE(r), len = buf.readUInt16BE(r + 8), at = strings + buf.readUInt16BE(r + 10);
         const raw = Buffer.from(buf.subarray(at, at + len));
         const name = (platform === 3 || platform === 0 ? raw.swap16().toString('utf16le') : raw.toString('latin1')).trim();
-        if (/^[A-Za-z0-9-]{1,80}$/.test(name)) return name;
+        if (PS_NAME.test(name)) return name;
       }
     }
   } catch { /* fichier tronqué ou invalide */ }
@@ -221,7 +221,7 @@ export function adminRouter() {
       if (!/\.(otf|ttf)$/i.test(f.originalname) || (magic !== 'OTTO' && magic !== '\0\x01\0\0' && magic !== 'true'))
         throw userErr(`« ${f.originalname} » n'est pas une police OpenType/TrueType (.otf ou .ttf).`);
       // Le fichier est enregistré sous son nom PostScript (celui que Figma et le modèle utilisent), quel que soit son nom d'origine.
-      const ps = postscriptName(f.buffer) || (/^[A-Za-z0-9-]{1,80}$/.test(f.originalname.replace(/\.(otf|ttf)$/i, '')) ? f.originalname.replace(/\.(otf|ttf)$/i, '') : null);
+      const ps = postscriptName(f.buffer) || (PS_NAME.test(f.originalname.replace(/\.(otf|ttf)$/i, '')) ? f.originalname.replace(/\.(otf|ttf)$/i, '') : null);
       if (!ps) throw userErr(`« ${f.originalname} » : nom PostScript introuvable dans la police. Renommez le fichier d'après ce nom (ex. Inter-SemiBold.otf).`);
       fs.writeFileSync(path.join(dir, `${ps}.otf`), f.buffer);
       saved.push(ps);
