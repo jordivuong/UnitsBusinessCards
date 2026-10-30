@@ -326,6 +326,7 @@ app.use((err, req, res, next) => {
 try {
   for (const c of loadClients().values())
     for (const t of c.templates.values()) {
+      if (t.kind === 'digital') continue; // bannières : pas de profil d'impression
       const p = resolveProfile(t.profile);
       if (p.isTest) console.warn(`⚠ Profil ICC de TEST utilisé pour ${c.slug}/${t.id} : ne pas imprimer ces fichiers.`);
     }
