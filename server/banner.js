@@ -104,7 +104,9 @@ export async function renderBanner(template, values, { format, scale = 1, type =
           if (el.hidden) continue;
           let size = parseFloat(getComputedStyle(el).fontSize);
           const min = Math.min(parseFloat(el.dataset.minSize || '') || size / 2, size); // un minimum au-dessus du corps de départ n'empêche rien
-          const over = () => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+          // Texte sur une seule ligne (white-space: nowrap) : seule la largeur compte (les jambages peuvent dépasser d'une boîte rognée).
+          const single = getComputedStyle(el).whiteSpace === 'nowrap';
+          const over = () => el.scrollWidth > el.clientWidth + 1 || (!single && el.scrollHeight > el.clientHeight + 1);
           while (over() && size > min) { size -= 0.5; el.style.fontSize = `${size}px`; }
           if (over()) overflow.push(el.dataset.field);
         }

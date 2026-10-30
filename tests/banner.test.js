@@ -79,3 +79,10 @@ test('rendu : aucune requête réseau sortante (même hors validation)', { skip:
   assert.equal(hits, 0);
   await closeBrowser();
 });
+
+test('rendu : texte sur une seule ligne, seule la largeur compte (jambages hors d\'une boîte rognée)', { skip: !hasChrome }, async () => {
+  const t = build({ 'a.html': page('<style>.b{width:250px;height:10px;font:40px sans-serif;white-space:nowrap}</style>', '<div class="b" data-field="nom" data-fit data-min-size="20">x</div>') });
+  const out = await renderBanner(t, { nom: 'gjpq Opéra' }, { format: 'a' });
+  assert.equal(out.buffer.subarray(1, 4).toString(), 'PNG');
+  await closeBrowser();
+});
